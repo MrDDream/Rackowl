@@ -1,8 +1,31 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+}
+
+/**
+ * Signature release : keystore.properties à la racine (ignoré par git), sinon variables d'environnement
+ * RACKOWL_STORE_FILE, RACKOWL_STORE_PASSWORD, RACKOWL_KEY_ALIAS, RACKOWL_KEY_PASSWORD (CI).
+ * Sans l'un ni l'autre, la variante release est produite non signée.
+ */
+val signing: Map<String, String>? = run {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) {
+        Properties().apply { file.inputStream().use { load(it) } }.let { p -> p.stringPropertyNames().associateWith { p.getProperty(it) } }
+    } else {
+        System.getenv("RACKOWL_STORE_FILE")?.let {
+            mapOf(
+                "storeFile" to it,
+                "storePassword" to System.getenv("RACKOWL_STORE_PASSWORD").orEmpty(),
+                "keyAlias" to System.getenv("RACKOWL_KEY_ALIAS").orEmpty(),
+                "keyPassword" to System.getenv("RACKOWL_KEY_PASSWORD").orEmpty(),
+            )
+        }
+    }
 }
 
 android {
@@ -17,8 +40,18 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        if (signing != null) create("release") {
+            storeFile = file(signing.getValue("storeFile"))
+            storePassword = signing.getValue("storePassword")
+            keyAlias = signing.getValue("keyAlias")
+            keyPassword = signing.getValue("keyPassword")
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -32,6 +65,9 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    // APK nommé Rackowl-v<version>-<variante>.apk
+    base.archivesName.set("Rackowl-v${defaultConfig.versionName}")
 
     buildFeatures {
         compose = true

@@ -62,6 +62,19 @@ Il faut le JDK 17 et le SDK Android (plateforme 34).
 
 L’APK est créé dans `app/build/outputs/apk/debug/`. Les tests se lancent avec `./gradlew testDebugUnitTest`.
 
+### Version release signée
+
+Crée un fichier `keystore.properties` à la racine du projet (il est ignoré par git) :
+
+```properties
+storeFile=/chemin/vers/rackowl-release.jks
+storePassword=…
+keyAlias=rackowl
+keyPassword=…
+```
+
+Lance ensuite `./gradlew assembleRelease`, qui crée `app/build/outputs/apk/release/Rackowl-v<version>-release.apk`. En CI, utilise plutôt les variables d’environnement `RACKOWL_STORE_FILE`, `RACKOWL_STORE_PASSWORD`, `RACKOWL_KEY_ALIAS` et `RACKOWL_KEY_PASSWORD`. Sans l’un ni l’autre, la version release n’est pas signée.
+
 Réalisé en Kotlin, avec Jetpack Compose, OkHttp, kotlinx.serialization, Glance (widgets d’écran d’accueil) et WorkManager.
 
 ## Remerciements
