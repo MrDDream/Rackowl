@@ -1,0 +1,5 @@
+Rackowl 0.3.1
+
+- Verrouillage : l'app se verrouille dès qu'elle passe en arrière-plan ou que l'écran s'éteint, au lieu d'attendre 30 secondes
+- Après le déverrouillage, tu retrouves la page que tu avais quittée
+- Tourner le téléphone ou saisir le code de l'appareil ne reverrouille plus l'app
