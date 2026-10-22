@@ -153,11 +153,9 @@ fun DashboardScreen(nav: NavHostController) {
                         )
                         Text("Rackowl", fontSize = 24.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.2).sp)
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (!config.settings.pingEnabled) {
-                            Text("● ", fontSize = 13.sp, color = c.muted)
-                            Text(t("${all.size} services · pings off", "${all.size} services · pings désactivés"), fontSize = 13.sp, color = c.muted)
-                        } else if (runtime.offLan) {
+                    // Pings coupés : pas de ligne d'état sous le titre.
+                    if (config.settings.pingEnabled) Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (runtime.offLan) {
                             Text("● ", fontSize = 13.sp, color = c.warn)
                             Text(t("Off local network · connect your VPN", "Hors réseau local · connecte le VPN"), fontSize = 13.sp, color = c.warn)
                         } else {
@@ -197,7 +195,9 @@ fun DashboardScreen(nav: NavHostController) {
                 // Une page par catégorie, qu'on fait glisser du doigt ; titre et points de page en haut.
                 else -> Column(Modifier.fillMaxSize()) {
                     CategoryHeader(
-                        listed, pager.currentPage, editing,
+                        listed, pager.currentPage, editing, config.settings.categoryNav,
+                        // Catégories ayant un service hors ligne : repère rouge dans la navigation.
+                        listed.filter { cat -> cat.services.any { !it.hidden && statuses[it.id]?.up == false } }.map { it.id }.toSet(),
                         onPick = { i -> scope.launch { pager.animateScrollToPage(i) } },
                         onAdd = {
                             val cat = Category(name = t("New category", "Nouvelle catégorie"))
@@ -253,48 +253,137 @@ private fun ResourcesCard(name: String, r: com.rackowl.data.Resources, warnAt: I
     }
 }
 
-/** Titre de la catégorie courante et points de page (le point actif s'allonge), comme un écran d'accueil. */
+/**
+ * Navigation entre catégories, selon le style choisi dans les réglages :
+ * titre + points, puces, onglets soulignés ou titre à menu. Le glissement entre pages marche dans tous les cas.
+ */
 @Composable
 private fun CategoryHeader(
-    listed: List<Category>, current: Int, editing: Boolean, onPick: (Int) -> Unit, onAdd: () -> Unit,
+    listed: List<Category>, current: Int, editing: Boolean, style: com.rackowl.data.CategoryNav,
+    alerts: Set<String>, onPick: (Int) -> Unit, onAdd: () -> Unit,
 ) {
     val c = Home.colors
-    val cat = listed.getOrNull(current)
-    Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-        Column(
-            Modifier.align(Alignment.Center).padding(vertical = 6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.alpha(if (cat?.hidden == true) 0.55f else 1f)) {
-                Text(
-                    cat?.name?.ifBlank { t("Untitled", "Sans nom") }.orEmpty(),
-                    fontSize = 19.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-                if (cat?.hidden == true && editing) {
-                    Spacer(Modifier.width(6.dp))
-                    Icon(HIcons.EyeOff, t("hidden", "masquée"), Modifier.size(16.dp), tint = c.muted)
-                }
-            }
-            if (listed.size > 1) Row(
-                Modifier.semantics { contentDescription = t("Page ${current + 1} of ${listed.size}", "Page ${current + 1} sur ${listed.size}") },
-                verticalAlignment = Alignment.CenterVertically,
+    val add: @Composable (Modifier) -> Unit = { m -> if (editing) IconBtn(HIcons.Plus, t("New category", "Nouvelle catégorie"), onAdd, m, tint = c.muted, iconSize = 18.dp) }
+    fun name(cat: Category) = cat.name.ifBlank { t("Untitled", "Sans nom") }
+    val alertDot: @Composable (Category) -> Unit = { cat ->
+        if (cat.id in alerts) Box(Modifier.padding(start = 6.dp).size(6.dp).clip(RoundedCornerShape(3.dp)).background(c.down))
+    }
+    when (style) {
+        com.rackowl.data.CategoryNav.DOTS -> Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+            val cat = listed.getOrNull(current)
+            Column(
+                Modifier.align(Alignment.Center).padding(vertical = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                listed.indices.forEach { i ->
-                    val on = i == current
-                    val w by animateDpAsState(if (on) 18.dp else 6.dp, label = "dot")
-                    val col by animateColorAsState(if (on) c.accent else c.trackOff, label = "dotColor")
-                    // Zone tactile plus large que le point lui-même.
-                    Box(
-                        Modifier.height(20.dp).clickable(onClickLabel = listed[i].name) { onPick(i) }.padding(horizontal = 3.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Box(Modifier.size(w, 6.dp).clip(RoundedCornerShape(3.dp)).background(col))
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.alpha(if (cat?.hidden == true) 0.55f else 1f)) {
+                    Text(cat?.let(::name).orEmpty(), fontSize = 19.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (cat?.hidden == true && editing) {
+                        Spacer(Modifier.width(6.dp))
+                        Icon(HIcons.EyeOff, t("hidden", "masquée"), Modifier.size(16.dp), tint = c.muted)
+                    }
+                }
+                if (listed.size > 1) Row(
+                    Modifier.semantics { contentDescription = t("Page ${current + 1} of ${listed.size}", "Page ${current + 1} sur ${listed.size}") },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    listed.forEachIndexed { i, cat ->
+                        val on = i == current
+                        val w by animateDpAsState(if (on) 18.dp else 6.dp, label = "dot")
+                        val col by animateColorAsState(if (on) c.accent else if (cat.id in alerts) c.down else c.trackOff, label = "dotColor")
+                        // Zone tactile plus large que le point lui-même.
+                        Box(
+                            Modifier.height(20.dp).clickable(onClickLabel = name(cat)) { onPick(i) }.padding(horizontal = 3.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { Box(Modifier.size(w, 6.dp).clip(RoundedCornerShape(3.dp)).background(col)) }
                     }
                 }
             }
+            add(Modifier.align(Alignment.CenterEnd))
         }
-        if (editing) IconBtn(HIcons.Plus, t("New category", "Nouvelle catégorie"), onAdd, Modifier.align(Alignment.CenterEnd), tint = c.muted, iconSize = 18.dp)
+
+        com.rackowl.data.CategoryNav.PILLS -> {
+            val rowState = rememberLazyListState()
+            LaunchedEffect(current) { if (current in listed.indices) rowState.animateScrollToItem((current - 1).coerceAtLeast(0)) }
+            LazyRow(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp), state = rowState,
+                contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                itemsIndexed(listed, key = { _, cat -> cat.id }) { i, cat ->
+                    val on = i == current
+                    val bg by animateColorAsState(if (on) c.accent else c.surface, label = "pill")
+                    Row(
+                        Modifier.height(36.dp).clip(RoundedCornerShape(50)).background(bg)
+                            .border(1.dp, if (on) c.accent else c.border, RoundedCornerShape(50))
+                            .clickable(role = Role.Tab) { onPick(i) }.padding(horizontal = 14.dp).alpha(if (cat.hidden) 0.55f else 1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(name(cat), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = if (on) c.onAccent else c.textSecondary, maxLines = 1)
+                        Text(
+                            "  ${cat.services.count { !it.hidden }}",
+                            style = mono(11, if (on) c.onAccent.copy(alpha = 0.7f) else c.muted),
+                        )
+                        alertDot(cat)
+                    }
+                }
+                item { add(Modifier) }
+            }
+        }
+
+        com.rackowl.data.CategoryNav.TABS -> {
+            val rowState = rememberLazyListState()
+            LaunchedEffect(current) { if (current in listed.indices) rowState.animateScrollToItem((current - 1).coerceAtLeast(0)) }
+            Column {
+                LazyRow(Modifier.fillMaxWidth(), state = rowState, contentPadding = PaddingValues(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    itemsIndexed(listed, key = { _, cat -> cat.id }) { i, cat ->
+                        val on = i == current
+                        val bar by animateColorAsState(if (on) c.accent else Color.Transparent, label = "tab")
+                        Column(Modifier.height(44.dp).clickable(role = Role.Tab) { onPick(i) }.alpha(if (cat.hidden) 0.55f else 1f), verticalArrangement = Arrangement.Bottom) {
+                            Row(Modifier.weight(1f).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(name(cat), fontSize = 14.sp, fontWeight = FontWeight.Medium, color = if (on) c.text else c.muted)
+                                alertDot(cat)
+                            }
+                            Box(Modifier.fillMaxWidth().height(2.dp).background(bar))
+                        }
+                    }
+                    item { add(Modifier) }
+                }
+                com.rackowl.ui.components.Divider()
+            }
+        }
+
+        com.rackowl.data.CategoryNav.MENU -> Box(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 2.dp)) {
+            var open by remember { mutableStateOf(false) }
+            val cat = listed.getOrNull(current)
+            Row(
+                Modifier.align(Alignment.CenterStart).clip(RoundedCornerShape(10.dp)).clickable(role = Role.DropdownList) { open = true }
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(cat?.let(::name).orEmpty(), fontSize = 19.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.width(6.dp))
+                Icon(HIcons.ChevronDown, null, Modifier.size(18.dp), tint = c.muted)
+                androidx.compose.material3.DropdownMenu(open, { open = false }, containerColor = c.surface) {
+                    listed.forEachIndexed { i, item ->
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(name(item), fontSize = 15.sp, color = if (i == current) c.accent else c.text, modifier = Modifier.weight(1f, fill = false))
+                                    alertDot(item)
+                                    Text("   ${item.services.count { !it.hidden }}", style = mono(12, c.muted))
+                                }
+                            },
+                            onClick = { open = false; onPick(i) },
+                        )
+                    }
+                }
+            }
+            Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
+                if (listed.size > 1) Text("${current + 1} / ${listed.size}", style = mono(12, c.muted), modifier = Modifier.padding(end = 6.dp))
+                add(Modifier)
+            }
+        }
     }
 }
 

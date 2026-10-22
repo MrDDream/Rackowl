@@ -231,6 +231,16 @@ fun SettingsScreen(@Suppress("UNUSED_PARAMETER") nav: NavHostController) {
                     listOf(ThemeMode.DARK to t("Dark", "Sombre"), ThemeMode.LIGHT to t("Light", "Clair"), ThemeMode.SYSTEM to t("System", "Système")), s.theme,
                     { v -> app.edit { updateSettings { it.copy(theme = v) } } }, bg = c.surface, height = 40.dp,
                 )
+                SectionTitle(t("Category navigation", "Navigation entre catégories"), Modifier.padding(top = 10.dp))
+                Segmented(
+                    listOf(
+                        com.rackowl.data.CategoryNav.DOTS to t("Dots", "Points"),
+                        com.rackowl.data.CategoryNav.PILLS to t("Pills", "Puces"),
+                        com.rackowl.data.CategoryNav.TABS to t("Tabs", "Onglets"),
+                        com.rackowl.data.CategoryNav.MENU to "Menu",
+                    ),
+                    s.categoryNav, { v -> app.edit { updateSettings { it.copy(categoryNav = v) } } }, bg = c.surface, height = 40.dp,
+                )
                 SectionTitle(t("Language", "Langue"), Modifier.padding(top = 10.dp))
                 Segmented(
                     listOf(com.rackowl.data.Language.EN to "English", com.rackowl.data.Language.FR to "Français"), s.language,

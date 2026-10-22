@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rackowl · Homelab dashboard for Android</title>
+<meta name="description" content="Rackowl keeps an eye on your self-hosted services from your phone: availability, live stats, container control, Docker logs and home-screen widgets.">
+<meta property="og:title" content="Rackowl · Homelab dashboard for Android">
+<meta property="og:description" content="156 Homepage widgets, container control, alerts and logs, in your pocket.">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0F1115; --surface: #171A21; --raised: #1D2129; --border: #252A34; --border-strong: #2E3440;
+    --text: #E6E8EC; --text-2: #C9CED6; --muted: #9AA1AD; --accent: #3DD6B5; --accent-bg: #14302A;
+    --on-accent: #0F1115; --warn: #F5A524; --down: #F87171; --up: #4ADE80;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 17px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+
+  /* barre du haut */
+  header.top { position: sticky; top: 0; z-index: 10; background: rgba(15, 17, 21, .86); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+  .top .wrap { display: flex; align-items: center; gap: 24px; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 19px; text-decoration: none; }
+  .brand img { width: 32px; height: 32px; border-radius: 8px; }
+  .top nav { display: flex; gap: 22px; margin-left: auto; font-size: 15px; }
+  .top nav a { text-decoration: none; color: var(--muted); }
+  .top nav a:hover { color: var(--text); }
+  .lang { display: flex; padding: 3px; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+  .lang button { all: unset; cursor: pointer; padding: 4px 10px; border-radius: 7px; font: 500 13px var(--mono); color: var(--muted); }
+  .lang button[aria-pressed="true"] { background: var(--border); color: var(--text); }
+  .lang button:focus-visible { outline: 2px solid var(--accent); }
+
+  /* hero */
+  .hero { padding: 72px 0 40px; }
+  .hero .wrap { display: grid; grid-template-columns: 1.1fr .9fr; gap: 48px; align-items: center; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--accent-bg); color: var(--accent); font-size: 13px; font-weight: 500; }
+  .eyebrow::before { content: ""; width: 7px; height: 7px; border-radius: 4px; background: var(--accent); }
+  h1 { font-size: clamp(38px, 6vw, 60px); line-height: 1.05; letter-spacing: -.02em; margin: 18px 0 18px; font-weight: 600; }
+  h1 em { font-style: normal; color: var(--accent); }
+  .lead { font-size: 19px; color: var(--text-2); max-width: 34em; margin: 0 0 28px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; height: 50px; padding: 0 22px; border-radius: 14px; font-weight: 600; font-size: 16px; text-decoration: none; }
+  .btn.primary { background: var(--accent); color: var(--on-accent); }
+  .btn.secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+  .btn svg { width: 19px; height: 19px; }
+  .facts { display: flex; flex-wrap: wrap; gap: 22px; margin-top: 28px; color: var(--muted); font-size: 14px; }
+  .facts b { color: var(--text); font-family: var(--mono); font-weight: 500; }
+  .hero-phone { justify-self: center; width: min(360px, 100%); filter: drop-shadow(0 30px 60px rgba(0,0,0,.55)); transform: rotate(2.5deg); }
+  .hero-phone img { width: 100%; height: auto; display: block; }
+
+  section { padding: 72px 0; }
+  h2 { font-size: clamp(28px, 4vw, 38px); letter-spacing: -.01em; margin: 0 0 12px; font-weight: 600; }
+  .section-lead { color: var(--muted); max-width: 40em; margin: 0 0 40px; }
+
+  /* écrans */
+  .screens { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; }
+  .screens figure { margin: 0; }
+  .screens img { width: 100%; height: auto; display: block; filter: drop-shadow(0 18px 34px rgba(0,0,0,.45)); }
+  .screens figcaption { margin-top: 14px; font-size: 15px; color: var(--text-2); text-align: center; }
+
+  /* fonctionnalités */
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .feature { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 22px; }
+  .feature svg { width: 26px; height: 26px; color: var(--accent); }
+  .feature h3 { margin: 14px 0 6px; font-size: 18px; font-weight: 600; }
+  .feature p { margin: 0; color: var(--muted); font-size: 15px; }
+
+  /* intégrations */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chips span { padding: 7px 13px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); font-size: 14px; color: var(--text-2); }
+  .chips span.more { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+
+  /* étapes */
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; counter-reset: step; }
+  .step { border-top: 2px solid var(--border-strong); padding-top: 18px; }
+  .step::before { counter-increment: step; content: counter(step, decimal-leading-zero); font: 500 14px var(--mono); color: var(--accent); }
+  .step h3 { margin: 8px 0 6px; font-size: 17px; }
+  .step p { margin: 0; color: var(--muted); font-size: 15px; }
+
+  .download { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 40px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; }
+  .download h2 { margin-bottom: 6px; }
+  .download p { margin: 0; color: var(--muted); }
+
+  footer { border-top: 1px solid var(--border); padding: 32px 0 48px; color: var(--muted); font-size: 14px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; }
+
+  @media (max-width: 900px) {
+    .hero .wrap { grid-template-columns: 1fr; }
+    .hero-phone { transform: none; width: min(300px, 80%); }
+    .screens { grid-template-columns: repeat(4, 240px); overflow-x: auto; padding-bottom: 12px; scroll-snap-type: x mandatory; }
+    .screens figure { scroll-snap-align: center; }
+    .features { grid-template-columns: 1fr 1fr; }
+    .steps { grid-template-columns: 1fr 1fr; }
+    .top nav { display: none; }
+    .lang { margin-left: auto; }
+  }
+  @media (max-width: 560px) {
+    body { font-size: 16px; }
+    .hero { padding-top: 40px; }
+    .features, .steps { grid-template-columns: 1fr; }
+    .download { padding: 28px; }
+  }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .hero-phone { transform: none; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><img src="logo.svg" alt="">Rackowl</a>
+    <nav aria-label="Sections">
+      <a href="#screens" data-i18n="nav.screens">Screens</a>
+      <a href="#features" data-i18n="nav.features">Features</a>
+      <a href="#install" data-i18n="nav.install">Install</a>
+      <a href="https://github.com/MrDDream/Rackowl">GitHub</a>
+    </nav>
+    <div class="lang" role="group" aria-label="Language">
+      <button type="button" data-lang="en" aria-pressed="true">EN</button>
+      <button type="button" data-lang="fr" aria-pressed="false">FR</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <span class="eyebrow" data-i18n="hero.eyebrow">Version 0.2.0 · Android 8.0+</span>
+        <h1 data-i18n-html="hero.title">Your homelab,<br><em>in your pocket.</em></h1>
+        <p class="lead" data-i18n="hero.lead">Rackowl keeps an eye on your self-hosted services: availability, live stats from every service’s API, container control, Docker logs and home-screen widgets. No server to install, no account to create.</p>
+        <div class="cta">
+          <a class="btn primary" href="https://github.com/MrDDream/Rackowl/releases/latest">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+            <span data-i18n="cta.download">Download the APK</span>
+          </a>
+          <a class="btn secondary" href="https://github.com/MrDDream/Rackowl">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.93.36.31.68.92.68 1.85v2.75c0 .27.18.58.69.48A10 10 0 0 0 12 2z"/></svg>
+            <span data-i18n="cta.source">Source code</span>
+          </a>
+        </div>
+        <div class="facts">
+          <span><b>156</b> <span data-i18n="facts.widgets">Homepage widgets</span></span>
+          <span><b>126</b> <span data-i18n="facts.stats">with live stats</span></span>
+          <span><b>0</b> <span data-i18n="facts.server">server to host</span></span>
+        </div>
+      </div>
+      <div class="hero-phone"><img src="assets/dashboard.svg" alt="Rackowl dashboard: server resources and service tiles" data-i18n-alt="alt.dashboard" width="418" height="872"></div>
+    </div>
+  </section>
+
+  <section id="screens">
+    <div class="wrap">
+      <h2 data-i18n="screens.title">Everything at a glance</h2>
+      <p class="section-lead" data-i18n="screens.lead">A dark, quiet interface designed for a quick look between two things: green means fine, red means look.</p>
+      <div class="screens">
+        <figure><img src="assets/dashboard.svg" alt="" width="418" height="872" loading="lazy"><figcaption data-i18n="screens.dashboard">Dashboard with the info you pick</figcaption></figure>
+        <figure><img src="assets/detail.svg" alt="" width="418" height="872" loading="lazy"><figcaption data-i18n="screens.detail">Details, history and quick actions</figcaption></figure>
+        <figure><img src="assets/alerts.svg" alt="" width="418" height="872" loading="lazy"><figcaption data-i18n="screens.alerts">Alerts and ongoing incidents</figcaption></figure>
+        <figure><img src="assets/logs.svg" alt="" width="418" height="872" loading="lazy"><figcaption data-i18n="screens.logs">Live container logs</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="wrap">
+      <h2 data-i18n="features.title">Built for homelabbers</h2>
+      <p class="section-lead" data-i18n="features.lead">Everything Homepage shows on your browser, plus what a phone does better: notifications, widgets, and a quick restart from the couch.</p>
+      <div class="features">
+        <div class="feature">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>
+          <h3 data-i18n="f1.t">156 Homepage widgets</h3>
+          <p data-i18n="f1.d">Sonarr, Jellyfin, Proxmox, OpenMediaVault, Pi-hole, Komodo and the rest of the catalogue. Pick which stats each tile shows.</p>
+        </div>
+        <div class="feature">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 7.3a8 8 0 1 0 11.4 0"/></svg>
+          <h3 data-i18n="f2.t">Container control</h3>
+          <p data-i18n="f2.d">Start, restart or stop a container through Docker or Komodo, with a confirmation so you don’t stop the wrong one.</p>
+        </div>
+        <div class="feature">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 21h4"/></svg>
+          <h3 data-i18n="f3.t">Alerts that make sense</h3>
+          <p data-i18n="f3.d">Offline and back-online notifications through Android, Gotify or ntfy. Away from home without VPN? Local services pause instead of flooding you.</p>
+        </div>
+        <div class="feature">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M7 9l3 3-3 3"/><path d="M13 15h4"/></svg>
+          <h3 data-i18n="f4.t">Live Docker logs</h3>
+          <p data-i18n="f4.d">Follow any container through Dozzle, filter by server, text or level, pause and export.</p>
+        </div>
+        <div class="feature">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          <h3 data-i18n="f5.t">Add from a container</h3>
+          <p data-i18n="f5.d">Pick a host, then a container: name, icon, integration and URL are filled in for you.</p>
+        </div>
+        <div class="feature">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg>
+          <h3 data-i18n="f6.t">Home-screen widgets</h3>
+          <p data-i18n="f6.d">Service status, server resources and a single service, right on your home screen. Optional always-on monitoring, like Gotify.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="integrations">
+    <div class="wrap">
+      <h2 data-i18n="int.title">Speaks your stack</h2>
+      <p class="section-lead" data-i18n="int.lead">Every service widget from gethomepage.dev is in the catalogue, and you can import your existing services.yaml.</p>
+      <div class="chips">
+        <span>Sonarr</span><span>Radarr</span><span>Lidarr</span><span>Prowlarr</span><span>Jellyfin</span><span>Emby</span><span>Plex</span><span>Seerr</span>
+        <span>qBittorrent</span><span>Transmission</span><span>SABnzbd</span><span>Proxmox</span><span>Proxmox Backup Server</span><span>Portainer</span><span>Komodo</span>
+        <span>OpenMediaVault</span><span>TrueNAS</span><span>Synology</span><span>Unraid</span><span>Pi-hole</span><span>AdGuard Home</span><span>Technitium</span>
+        <span>UniFi</span><span>OPNsense</span><span>pfSense</span><span>Traefik</span><span>Home Assistant</span><span>Immich</span><span>Nextcloud</span><span>Paperless-ngx</span>
+        <span>Syncthing</span><span>Uptime Kuma</span><span>Grafana</span><span>Netdata</span><span>Glances</span><span>Scrutiny</span><span>Watchtower</span><span>wg-easy</span>
+        <span class="more" data-i18n="int.more">and 120+ more</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="start">
+    <div class="wrap">
+      <h2 data-i18n="start.title">Up and running in minutes</h2>
+      <p class="section-lead" data-i18n="start.lead">No YAML required, but bring yours if you have it.</p>
+      <div class="steps">
+        <div class="step"><h3 data-i18n="s1.t">Install the APK</h3><p data-i18n="s1.d">Download it from the releases page and open it on your phone.</p></div>
+        <div class="step"><h3 data-i18n="s2.t">Add your sources</h3><p data-i18n="s2.d">Docker hosts, Komodo, Glances and Dozzle, as many as you have.</p></div>
+        <div class="step"><h3 data-i18n="s3.t">Add services</h3><p data-i18n="s3.d">By hand, from a container, or by importing your Homepage services.yaml.</p></div>
+        <div class="step"><h3 data-i18n="s4.t">Pick your alerts</h3><p data-i18n="s4.d">Android, Gotify or ntfy, then forget about it until something breaks.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="wrap">
+      <div class="download">
+        <div>
+          <h2 data-i18n="dl.title">Get Rackowl</h2>
+          <p data-i18n="dl.lead">Free download for Android 8.0 and later. English and French.</p>
+        </div>
+        <a class="btn primary" href="https://github.com/MrDDream/Rackowl/releases/latest">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+          <span data-i18n="cta.download">Download the APK</span>
+        </a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span data-i18n-html="footer.credits">Inspired by <a href="https://gethomepage.dev">Homepage</a> · Icons by <a href="https://selfh.st/icons/">selfh.st</a> · Logs by <a href="https://dozzle.dev">Dozzle</a></span>
+    <a href="https://github.com/MrDDream/Rackowl">github.com/MrDDream/Rackowl</a>
+  </div>
+</footer>
+
+<script>
+  // Français : l'anglais est déjà dans le HTML (langue par défaut).
+  const FR = {
+    "nav.screens": "Écrans", "nav.features": "Fonctionnalités", "nav.install": "Installer",
+    "hero.eyebrow": "Version 0.2.0 · Android 8.0+",
+    "hero.title": "Ton homelab,<br><em>dans ta poche.</em>",
+    "hero.lead": "Rackowl surveille tes services auto-hébergés : disponibilité, statistiques en direct depuis l’API de chaque service, pilotage des conteneurs, logs Docker et widgets d’écran d’accueil. Aucun serveur à installer, aucun compte à créer.",
+    "cta.download": "Télécharger l’APK", "cta.source": "Code source",
+    "facts.widgets": "widgets Homepage", "facts.stats": "avec statistiques", "facts.server": "serveur à héberger",
+    "alt.dashboard": "Tableau de bord Rackowl : ressources du serveur et tuiles des services",
+    "screens.title": "Tout en un coup d’œil",
+    "screens.lead": "Une interface sombre et calme, pensée pour un coup d’œil rapide : vert, tout va bien ; rouge, à regarder.",
+    "screens.dashboard": "Tableau de bord avec les infos de ton choix", "screens.detail": "Détail, historique et actions rapides",
+    "screens.alerts": "Alertes et incidents en cours", "screens.logs": "Logs des conteneurs en direct",
+    "features.title": "Pensé pour les homelabbers",
+    "features.lead": "Tout ce que Homepage affiche dans ton navigateur, plus ce qu’un téléphone fait mieux : notifications, widgets et redémarrage rapide depuis le canapé.",
+    "f1.t": "156 widgets Homepage", "f1.d": "Sonarr, Jellyfin, Proxmox, OpenMediaVault, Pi-hole, Komodo et tout le reste du catalogue. Tu choisis les infos affichées sur chaque tuile.",
+    "f2.t": "Pilotage des conteneurs", "f2.d": "Démarre, redémarre ou arrête un conteneur via Docker ou Komodo, avec une confirmation pour ne pas arrêter le mauvais.",
+    "f3.t": "Des alertes utiles", "f3.d": "Pannes et retours en ligne via Android, Gotify ou ntfy. Dehors sans VPN ? Les services locaux se mettent en pause au lieu de te noyer d’alertes.",
+    "f4.t": "Logs Docker en direct", "f4.d": "Suis n’importe quel conteneur via Dozzle, filtre par serveur, texte ou niveau, mets en pause et exporte.",
+    "f5.t": "Ajout depuis un conteneur", "f5.d": "Choisis un hôte, puis un conteneur : nom, icône, intégration et URL sont remplis pour toi.",
+    "f6.t": "Widgets d’écran d’accueil", "f6.d": "État des services, ressources serveur et un service au choix, directement sur ton écran d’accueil. Surveillance continue en option, comme Gotify.",
+    "int.title": "Parle la langue de ta stack",
+    "int.lead": "Tous les widgets de service de gethomepage.dev sont au catalogue, et tu peux importer ton services.yaml existant.",
+    "int.more": "et plus de 120 autres",
+    "start.title": "Prêt en quelques minutes", "start.lead": "Pas besoin de YAML, mais apporte le tien si tu en as.",
+    "s1.t": "Installe l’APK", "s1.d": "Télécharge-le depuis la page des versions et ouvre-le sur ton téléphone.",
+    "s2.t": "Ajoute tes sources", "s2.d": "Hôtes Docker, Komodo, Glances et Dozzle, autant que tu en as.",
+    "s3.t": "Ajoute tes services", "s3.d": "À la main, depuis un conteneur, ou en important ton services.yaml Homepage.",
+    "s4.t": "Choisis tes alertes", "s4.d": "Android, Gotify ou ntfy, puis oublie-le jusqu’à la prochaine panne.",
+    "dl.title": "Installer Rackowl", "dl.lead": "Téléchargement gratuit pour Android 8.0 et plus récent. En anglais et en français.",
+    "footer.credits": "Inspiré de <a href=\"https://gethomepage.dev\">Homepage</a> · Icônes <a href=\"https://selfh.st/icons/\">selfh.st</a> · Logs via <a href=\"https://dozzle.dev\">Dozzle</a>",
+  };
+  const EN = {};
+  document.querySelectorAll("[data-i18n]").forEach((el) => { EN[el.dataset.i18n] = el.textContent; });
+  document.querySelectorAll("[data-i18n-html]").forEach((el) => { EN[el.dataset.i18nHtml] = el.innerHTML; });
+  document.querySelectorAll("[data-i18n-alt]").forEach((el) => { EN[el.dataset.i18nAlt] = el.alt; });
+
+  function setLang(lang) {
+    const dict = lang === "fr" ? FR : EN;
+    document.documentElement.lang = lang;
+    document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = dict[el.dataset.i18n] ?? EN[el.dataset.i18n]; });
+    document.querySelectorAll("[data-i18n-html]").forEach((el) => { el.innerHTML = dict[el.dataset.i18nHtml] ?? EN[el.dataset.i18nHtml]; });
+    document.querySelectorAll("[data-i18n-alt]").forEach((el) => { el.alt = dict[el.dataset.i18nAlt] ?? EN[el.dataset.i18nAlt]; });
+    document.querySelectorAll(".lang button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
+    try { localStorage.setItem("rackowl-lang", lang); } catch (e) {}
+  }
+  document.querySelectorAll(".lang button").forEach((b) => b.addEventListener("click", () => setLang(b.dataset.lang)));
+  let saved = null;
+  try { saved = localStorage.getItem("rackowl-lang"); } catch (e) {}
+  if (saved === "fr") setLang("fr");
+</script>
+</body>
+</html>

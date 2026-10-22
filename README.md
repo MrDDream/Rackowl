@@ -1,68 +1,99 @@
 <p align="center">
-  <img src="docs/logo.svg" alt="" width="96" height="96">
+  <img src="docs/logo.svg" alt="Rackowl logo" width="104" height="104">
 </p>
 
 <h1 align="center">Rackowl</h1>
 
 <p align="center">
-  A homelab dashboard for Android, inspired by <a href="https://gethomepage.dev">Homepage</a>.<br>
-  <a href="README.fr.md">Lire en français</a>
+  <b>Your homelab, in your pocket.</b><br>
+  A night-owl dashboard for Android that keeps an eye on your self-hosted services.
+</p>
+
+<p align="center">
+  <a href="https://github.com/MrDDream/Rackowl/releases/latest"><img src="https://img.shields.io/github/v/release/MrDDream/Rackowl?color=3DD6B5&label=release" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/Android-8.0%2B-3DD6B5" alt="Android 8.0+">
+  <img src="https://img.shields.io/badge/Homepage%20widgets-156-3DD6B5" alt="156 Homepage widgets">
+  <a href="https://mrddream.github.io/Rackowl/"><img src="https://img.shields.io/badge/website-online-3DD6B5" alt="Website"></a>
+</p>
+
+<p align="center">
+  <a href="https://mrddream.github.io/Rackowl/">Website</a> ·
+  <a href="https://github.com/MrDDream/Rackowl/releases/latest">Download</a> ·
+  <a href="README.fr.md">Version française</a>
+</p>
+
+<p align="center">
+  <img src="docs/assets/dashboard.svg" alt="Dashboard" width="200">
+  <img src="docs/assets/detail.svg" alt="Service details" width="200">
+  <img src="docs/assets/alerts.svg" alt="Alerts" width="200">
+  <img src="docs/assets/logs.svg" alt="Logs" width="200">
 </p>
 
 ---
 
-Rackowl keeps an eye on your self-hosted services from your phone: availability, live stats from each service's API, container control, Docker logs and home-screen widgets. Everything runs on the phone. There is no server to install and no account to create.
+## 🦉 Why Rackowl?
 
-## Features
+You love [Homepage](https://gethomepage.dev) on your desktop. On the phone, though, you want more than a web page: a notification when Jellyfin goes down, a quick look at the NAS from the couch, a container restart without opening a laptop.
 
-- **Dashboard.** One category per page: swipe between them or tap the page dots. Tiles come in 1 to 4 columns, with a status dot, and you choose which widget info each tile shows. Pull to refresh.
-- **156 Homepage widgets.** Every service widget from gethomepage.dev is in the catalogue. 126 of them read live stats: Sonarr, Radarr, Jellyfin, Proxmox, OpenMediaVault, Pi-hole, qBittorrent, Portainer, TrueNAS, Synology, UniFi, Home Assistant, Immich, Komodo, and more. The rest are monitored by ping.
-- **Service details.** Response time over 24 h, stats, lists (series, movies, Proxmox VMs and LXC with CPU and RAM…) and quick actions to start, restart or stop the container, with a confirmation.
-- **Add from a container.** Pick a host, then a container from Docker or Komodo. Rackowl fills in the name, icon, integration and `http(s)://{host IP}:{port}` URL.
-- **Alerts.** Offline and back-online events, warnings, ongoing incidents and 1-hour mute. Notifications go through Android, Gotify or ntfy.
-- **Logs.** Live container logs through Dozzle, filtered by server, text and level, with pause and export.
-- **Away from home.** Without home Wi-Fi or VPN, local services are paused instead of being reported as down. Public services stay monitored.
-- **Always on.** An optional foreground service with a permanent notification, like Gotify, checks services at the chosen interval even when the app is closed.
-- **Home-screen widgets.** Service status (4×2), server resources from Glances (2×2) and a single service (2×2).
-- **Homepage import and export.** `services.yaml`, `widgets.yaml` and `settings.yaml`.
-- **Docker labels.** Containers with `homepage.*` labels are added automatically.
-- English and French, with dark, light or system theme.
+Rackowl is that. It runs entirely on your phone: **no server to host, no account, no cloud.** Point it at your services and it does the rest.
 
-## Install
+## ✨ What it does
 
-1. Download the APK from the [latest release](https://github.com/MrDDream/Rackowl/releases/latest).
-2. Open it on your phone and allow installs from that source.
-
-Requires Android 8.0 or later.
-
-## Getting started
-
-1. **Settings › Sources**: add your Docker hosts (TCP API, ideally through docker-socket-proxy), Komodo and Glances. You can add several of each.
-2. **Settings › Logs**: add your Dozzle instance.
-3. **Dashboard › +**: add a service, either by hand or from a container. The integration is detected from the URL. Enter its API key, then **Test**.
-4. **Settings › Alerts**: choose Android, Gotify or ntfy.
-
-Some services need specific credentials:
-
-| Service | What to enter |
+| | |
 | --- | --- |
-| Proxmox VE | URL `https://IP:8006`, API token `user@pam!name=secret`, role **PVEAuditor** on `/` |
-| Proxmox Backup Server | Token ID `user@pbs!name` and its secret |
-| Komodo | API key and secret |
-| OpenMediaVault | Web UI username and password |
-| Self-signed HTTPS | **Settings › Network › Accept self-signed certificates** |
+| 🧩 **156 Homepage widgets** | Sonarr, Jellyfin, Proxmox, OpenMediaVault, Pi-hole, Komodo, TrueNAS, UniFi… 126 of them with live stats. You pick what each tile shows. |
+| 🐳 **Container control** | Add a service straight from a Docker or Komodo container, then start, restart or stop it, with a confirmation first. |
+| 🔔 **Alerts that make sense** | Offline and back-online notifications through Android, Gotify or ntfy. Away from home without VPN? Local services pause instead of spamming you. |
+| 📜 **Live logs** | Follow any container through Dozzle, filtered by server, text or level. |
+| 📱 **Home-screen widgets** | Service status, server resources (Glances) and a single service. |
+| 🔋 **Always on, if you want** | An optional foreground service, Gotify-style, for checks at your own pace even with the app closed. |
+| 🗂️ **Homepage-friendly** | Import and export `services.yaml`, and `homepage.*` Docker labels are picked up automatically. |
+| 🌍 **English & French** | Dark, light or system theme, plus four ways to swipe between categories. |
 
-## Build from source
+## 🚀 Get started
+
+1. **Download** the APK from the [latest release](https://github.com/MrDDream/Rackowl/releases/latest) and open it on your phone (Android 8.0+).
+2. **Settings › Sources**: add your Docker hosts, Komodo and Glances, as many as you like.
+3. **Dashboard › +**: add a service by hand or pick a container. Rackowl detects the integration; enter its API key and hit **Test**.
+4. **Settings › Alerts**: choose Android, Gotify or ntfy. Done.
+
+## 🙋 FAQ
+
+<details>
+<summary><b>Proxmox shows 0 VMs and no CPU or RAM</b></summary>
+
+Your API token probably has *Privilege Separation* enabled and no rights. In Proxmox, go to **Datacenter › Permissions › Add › API Token Permission**, path `/`, role **PVEAuditor** (read-only), with **Propagate** checked. Use `https://IP:8006` as the URL.
+</details>
+
+<details>
+<summary><b>I get “unreachable” alerts when I’m away from home</b></summary>
+
+That’s what **Settings › Network › Pause away from home** is for. When your home network (or VPN) isn’t reachable, local services are paused instead of reported as down.
+</details>
+
+<details>
+<summary><b>My service uses a self-signed certificate</b></summary>
+
+Turn on **Settings › Network › Accept self-signed certificates**. Only do it for services on your own network.
+</details>
+
+<details>
+<summary><b>Which credentials does each service need?</b></summary>
+
+The same as in Homepage: an API key for most services, a username and password for some (OpenMediaVault, qBittorrent…), and a key plus secret for Komodo, Proxmox Backup Server and OPNsense. The service form asks for the right fields once you pick the integration.
+</details>
+
+## 🛠️ Build from source
 
 You need JDK 17 and the Android SDK (platform 34).
 
 ```bash
-./gradlew assembleDebug
+./gradlew assembleDebug       # app/build/outputs/apk/debug/
+./gradlew testDebugUnitTest   # unit tests
 ```
 
-The APK is written to `app/build/outputs/apk/debug/`. Run the tests with `./gradlew testDebugUnitTest`.
-
-### Signed release build
+<details>
+<summary><b>Signed release build</b></summary>
 
 Create a `keystore.properties` file at the project root (it is ignored by git):
 
@@ -73,13 +104,13 @@ keyAlias=rackowl
 keyPassword=…
 ```
 
-Then run `./gradlew assembleRelease`, which writes `app/build/outputs/apk/release/Rackowl-v<version>-release.apk`. On CI, set the `RACKOWL_STORE_FILE`, `RACKOWL_STORE_PASSWORD`, `RACKOWL_KEY_ALIAS` and `RACKOWL_KEY_PASSWORD` environment variables instead. Without either, the release build is left unsigned.
+Then run `./gradlew assembleRelease`, which writes `app/build/outputs/apk/release/Rackowl-v<version>-release.apk`. On CI, set the `RACKOWL_STORE_FILE`, `RACKOWL_STORE_PASSWORD`, `RACKOWL_KEY_ALIAS` and `RACKOWL_KEY_PASSWORD` environment variables instead.
+</details>
 
-Built with Kotlin, Jetpack Compose, OkHttp, kotlinx.serialization, Glance (home-screen widgets) and WorkManager.
+Built with Kotlin, Jetpack Compose, OkHttp, kotlinx.serialization, Glance and WorkManager.
 
-## Credits
+## 💚 Credits
 
-- [Homepage](https://github.com/gethomepage/homepage), whose widgets served as the reference for each service's API.
-- [selfh.st icons](https://selfh.st/icons/) for service icons.
-- [Dozzle](https://dozzle.dev) for container logs.
-- [IBM Plex Sans](https://github.com/IBM/plex) and [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) fonts, under the SIL Open Font License.
+- [Homepage](https://github.com/gethomepage/homepage): its widgets are the reference for every service API.
+- [selfh.st icons](https://selfh.st/icons/) for the service icons, and [Dozzle](https://dozzle.dev) for container logs.
+- [IBM Plex Sans](https://github.com/IBM/plex) and [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono), under the SIL Open Font License.

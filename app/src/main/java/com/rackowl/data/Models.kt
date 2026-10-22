@@ -59,6 +59,10 @@ enum class ThemeMode { DARK, LIGHT, SYSTEM }
 @Serializable
 enum class Language { EN, FR }
 
+/** Style de navigation entre catégories du tableau de bord (toutes se glissent du doigt). */
+@Serializable
+enum class CategoryNav { DOTS, PILLS, TABS, MENU }
+
 @Serializable
 enum class SourceType { DOCKER, KOMODO, GLANCES }
 
@@ -107,6 +111,7 @@ data class Settings(
     val keepAlive: Boolean = false,
     /** Interrupteur général des pings (disponibilité et alertes hors ligne). */
     val pingEnabled: Boolean = true,
+    val categoryNav: CategoryNav = CategoryNav.DOTS,
     val language: Language = Language.EN,
     /** Hôte de référence du réseau local (« ip:port ») ; vide = détection automatique. */
     val lanProbe: String = "",
