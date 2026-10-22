@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="108" height="108" role="img" aria-label="Rackowl">
+  <rect width="108" height="108" rx="24" fill="#0F1115"/>
+  <path d="M24 30l14 12M84 30L70 42" stroke="#E6E8EC" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="40" cy="58" r="16" fill="none" stroke="#E6E8EC" stroke-width="6"/>
+  <circle cx="68" cy="58" r="16" fill="none" stroke="#E6E8EC" stroke-width="6"/>
+  <circle cx="40" cy="58" r="6" fill="#3DD6B5"/>
+  <circle cx="68" cy="58" r="6" fill="#F5A524"/>
+  <path d="M50 76l4 6 4-6z" fill="#E6E8EC"/>
+</svg>

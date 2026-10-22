@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">Rackowl</string>
+    <string name="widget_status">Service status</string>
+    <string name="widget_status_desc">Services online and response times</string>
+    <string name="widget_resources">Server resources</string>
+    <string name="widget_resources_desc">CPU, RAM and disk (Glances)</string>
+    <string name="widget_service">Single service</string>
+    <string name="widget_service_desc">Main statistic of one service</string>
+    <string name="channel_alerts">Service alerts</string>
+</resources>

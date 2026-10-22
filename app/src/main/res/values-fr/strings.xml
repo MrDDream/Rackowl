@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_status">État des services</string>
+    <string name="widget_status_desc">Services en ligne et temps de réponse</string>
+    <string name="widget_resources">Ressources serveur</string>
+    <string name="widget_resources_desc">CPU, RAM et disque (Glances)</string>
+    <string name="widget_service">Un service</string>
+    <string name="widget_service_desc">Statistique principale d\'un service</string>
+    <string name="channel_alerts">Alertes services</string>
+</resources>
