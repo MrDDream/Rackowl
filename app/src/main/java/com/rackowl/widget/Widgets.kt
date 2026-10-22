@@ -10,6 +10,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.Image
+import androidx.glance.ImageProvider
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetManager
@@ -82,6 +84,7 @@ private fun Dot(color: Color) = Box(GlanceModifier.size(8.dp).background(ColorPr
 class StatusWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val app = context.applicationContext as RackowlApp
+        val icons = IconCache.bitmaps(context, app.store.config.value.allServices().filter { it.showInWidget }.map { it.icon })
         provideContent {
             val config by app.store.config.state.collectAsState()
             val runtime by app.store.runtime.state.collectAsState()
@@ -110,6 +113,10 @@ class StatusWidget : GlanceAppWidget() {
                             pair.forEach { (s, st) ->
                                 Row(GlanceModifier.defaultWeight().padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Dot(when (st?.up) { true -> UP; false -> DOWN; null -> GREY })
+                                    icons[s.icon]?.let {
+                                        Spacer(GlanceModifier.width(6.dp))
+                                        Image(ImageProvider(it), null, GlanceModifier.size(16.dp))
+                                    }
                                     Spacer(GlanceModifier.width(6.dp))
                                     Text(s.name, style = plain(13), maxLines = 1, modifier = GlanceModifier.defaultWeight())
                                     Text(
@@ -179,6 +186,7 @@ class ResourcesWidgetReceiver : GlanceAppWidgetReceiver() {
 class ServiceWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val app = context.applicationContext as RackowlApp
+        val icons = IconCache.bitmaps(context, app.store.config.value.allServices().map { it.icon })
         val widgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
         provideContent {
             val config by app.store.config.state.collectAsState()
@@ -192,6 +200,10 @@ class ServiceWidget : GlanceAppWidget() {
                     Text(t("Pick a service (long press › Settings)", "Choisis un service (appui long › Paramètres)"), style = plain(12, MUTED))
                 } else Column(GlanceModifier.fillMaxSize()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        icons[s.icon]?.let {
+                            Image(ImageProvider(it), null, GlanceModifier.size(26.dp))
+                            Spacer(GlanceModifier.width(8.dp))
+                        }
                         Dot(when (st?.up) { true -> UP; false -> DOWN; null -> GREY })
                         Spacer(GlanceModifier.width(8.dp))
                         Text(s.name, style = plain(14, bold = true), maxLines = 1)

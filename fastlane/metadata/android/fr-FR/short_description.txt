@@ -1,0 +1,1 @@
+Tableau de bord homelab : 156 widgets Homepage, alertes, conteneurs et logs

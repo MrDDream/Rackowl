@@ -14,11 +14,13 @@
   <img src="https://img.shields.io/badge/Android-8.0%2B-3DD6B5" alt="Android 8.0+">
   <img src="https://img.shields.io/badge/Homepage%20widgets-156-3DD6B5" alt="156 Homepage widgets">
   <a href="https://mrddream.github.io/Rackowl/"><img src="https://img.shields.io/badge/website-online-3DD6B5" alt="Website"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-3DD6B5" alt="GPL-3.0"></a>
 </p>
 
 <p align="center">
   <a href="https://mrddream.github.io/Rackowl/">Website</a> ·
   <a href="https://github.com/MrDDream/Rackowl/releases/latest">Download</a> ·
+  <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/MrDDream/Rackowl">Get it with Obtainium</a> ·
   <a href="README.fr.md">Version française</a>
 </p>
 
@@ -43,16 +45,18 @@ Rackowl is that. It runs entirely on your phone: **no server to host, no account
 | --- | --- |
 | 🧩 **156 Homepage widgets** | Sonarr, Jellyfin, Proxmox, OpenMediaVault, Pi-hole, Komodo, TrueNAS, UniFi… 126 of them with live stats. You pick what each tile shows. |
 | 🐳 **Container control** | Add a service straight from a Docker or Komodo container, then start, restart or stop it, with a confirmation first. |
-| 🔔 **Alerts that make sense** | Offline and back-online notifications through Android, Gotify or ntfy. Away from home without VPN? Local services pause instead of spamming you. |
+| 🔔 **Alerts that make sense** | Through Android, Gotify or ntfy, only after several failed checks if you want. Maintenance windows, quiet hours and critical services. Away from home without VPN? Local services pause instead of spamming you. |
+| 🩺 **Checks and diagnostics** | HTTP, TCP port (`tcp://host:port`) or expected-text checks, availability over 24 h, 7 and 30 days, and a diagnostic view that shows every request when a widget stays empty. |
 | 📜 **Live logs** | Follow any container through Dozzle, filtered by server, text or level. |
-| 📱 **Home-screen widgets** | Service status, server resources (Glances) and a single service. |
+| 📱 **Home-screen widgets** | Service status, server resources (Glances) and a single service, with real logos. Plus launcher shortcuts and a Quick Settings tile. |
 | 🔋 **Always on, if you want** | An optional foreground service, Gotify-style, for checks at your own pace even with the app closed. |
-| 🗂️ **Homepage-friendly** | Import and export `services.yaml`, and `homepage.*` Docker labels are picked up automatically. |
-| 🌍 **English & French** | Dark, light or system theme, plus four ways to swipe between categories. |
+| 🗂️ **Homepage-friendly** | Import and export `services.yaml`, live sync with your Homepage instance, and `homepage.*` Docker labels are picked up automatically. |
+| 🔐 **Your keys stay yours** | API keys and passwords are encrypted with the Android Keystore and never included in backups. Optional fingerprint lock. |
+| 🌍 **English & French** | Dark, light or Material You theme, four ways to swipe between categories, drag and drop, and a tablet layout. |
 
 ## 🚀 Get started
 
-1. **Download** the APK from the [latest release](https://github.com/MrDDream/Rackowl/releases/latest) and open it on your phone (Android 8.0+).
+1. **Download** the APK from the [latest release](https://github.com/MrDDream/Rackowl/releases/latest) and open it on your phone (Android 8.0+). To get updates automatically, add the repository to [Obtainium](https://github.com/ImranR98/Obtainium); Rackowl also tells you itself when a new version is out.
 2. **Settings › Sources**: add your Docker hosts, Komodo and Glances, as many as you like.
 3. **Dashboard › +**: add a service by hand or pick a container. Rackowl detects the integration; enter its API key and hit **Test**.
 4. **Settings › Alerts**: choose Android, Gotify or ntfy. Done.
@@ -75,6 +79,12 @@ That’s what **Settings › Network › Pause away from home** is for. When you
 <summary><b>My service uses a self-signed certificate</b></summary>
 
 Turn on **Settings › Network › Accept self-signed certificates**. Only do it for services on your own network.
+</details>
+
+<details>
+<summary><b>A widget shows nothing</b></summary>
+
+Open the service and tap the bug icon. The diagnostic view replays the check and the widget, and lists every request with its status and response; keys and passwords are masked. Copy the report into a [widget issue](https://github.com/MrDDream/Rackowl/issues/new/choose) if you need help.
 </details>
 
 <details>
@@ -105,6 +115,8 @@ keyPassword=…
 ```
 
 Then run `./gradlew assembleRelease`, which writes `app/build/outputs/apk/release/Rackowl-v<version>-release.apk`. On CI, set the `RACKOWL_STORE_FILE`, `RACKOWL_STORE_PASSWORD`, `RACKOWL_KEY_ALIAS` and `RACKOWL_KEY_PASSWORD` environment variables instead.
+
+Pushing a `v*` tag runs the release workflow: it builds the signed APK and publishes it with the changelog from `fastlane/metadata/android/en-US/changelogs/`.
 </details>
 
 Built with Kotlin, Jetpack Compose, OkHttp, kotlinx.serialization, Glance and WorkManager.
@@ -114,3 +126,7 @@ Built with Kotlin, Jetpack Compose, OkHttp, kotlinx.serialization, Glance and Wo
 - [Homepage](https://github.com/gethomepage/homepage): its widgets are the reference for every service API.
 - [selfh.st icons](https://selfh.st/icons/) for the service icons, and [Dozzle](https://dozzle.dev) for container logs.
 - [IBM Plex Sans](https://github.com/IBM/plex) and [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono), under the SIL Open Font License.
+
+## 📄 License
+
+Rackowl is free software under the [GNU General Public License v3.0](LICENSE).

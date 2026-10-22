@@ -25,6 +25,16 @@ data class Service(
     val showInWidget: Boolean = true,
     /** Statistiques du widget affichées sur la tuile (positions dans la liste du widget) ; vide = description. */
     val tileStats: List<Int> = emptyList(),
+    /** Vérifications ratées d'affilée avant de déclarer le service hors ligne (1 = aussitôt). */
+    val confirmChecks: Int = 1,
+    /** Service critique : ses alertes sonnent même pendant les heures calmes. */
+    val critical: Boolean = false,
+    /** Maintenance ponctuelle : pas d'alerte jusqu'à cet instant (ms). */
+    val maintenanceUntil: Long = 0,
+    /** Maintenance quotidienne « HH:mm-HH:mm » (peut passer minuit), vide = aucune. */
+    val maintenanceWindow: String = "",
+    /** Texte que la page doit contenir pour être considérée en ligne (vide = pas de contrôle). */
+    val expectText: String = "",
     val hidden: Boolean = false,
     /** Nom du conteneur Docker associé (découverte Docker / labels homepage.*). */
     val container: String? = null,
@@ -111,6 +121,21 @@ data class Settings(
     val keepAlive: Boolean = false,
     /** Interrupteur général des pings (disponibilité et alertes hors ligne). */
     val pingEnabled: Boolean = true,
+    /** Verrouillage par empreinte / code de l'appareil à l'ouverture. */
+    val appLock: Boolean = false,
+    /** Instance Homepage à synchroniser (URL de base), identifiants optionnels (proxy d'authentification). */
+    val homepageUrl: String = "",
+    val homepageUser: String = "",
+    val homepagePassword: String = "",
+    val homepageAutoSync: Boolean = true,
+    /** Vérifier une fois par jour s'il existe une nouvelle version sur GitHub. */
+    val checkUpdates: Boolean = true,
+    /** Heures calmes : notifications silencieuses, sauf services critiques. */
+    val quietHours: Boolean = false,
+    val quietStart: String = "22:00",
+    val quietEnd: String = "07:00",
+    /** Couleurs Material You tirées du fond d'écran (Android 12+). */
+    val dynamicColor: Boolean = false,
     val categoryNav: CategoryNav = CategoryNav.DOTS,
     val language: Language = Language.EN,
     /** Hôte de référence du réseau local (« ip:port ») ; vide = détection automatique. */
@@ -152,6 +177,15 @@ data class DetailItem(val title: String, val subtitle: String = "", val progress
 @Serializable
 data class Sample(val t: Long, val latency: Long?)
 
+/** Tranche de 6 h de l'historique long (30 jours) : vérifications réussies / total, latence cumulée. */
+@Serializable
+data class Bucket(
+    @kotlinx.serialization.SerialName("t") val t: Long,
+    @kotlinx.serialization.SerialName("u") val up: Int = 0,
+    @kotlinx.serialization.SerialName("n") val total: Int = 0,
+    @kotlinx.serialization.SerialName("l") val latencySum: Long = 0,
+)
+
 @Serializable
 data class ServiceStatus(
     val id: String,
@@ -162,12 +196,16 @@ data class ServiceStatus(
     val checkedAt: Long = 0,
     val downSince: Long? = null,
     val failedAttempts: Int = 0,
+    /** Vérifications ratées d'affilée (pour Service.confirmChecks). */
+    val consecutiveFailures: Int = 0,
     val stats: List<Stat> = emptyList(),
     val detailsTitle: String? = null,
     val details: List<DetailItem> = emptyList(),
     val statsAt: Long = 0,
     val statsError: String? = null,
     val history: List<Sample> = emptyList(),
+    /** Historique long : tranches de 6 h sur 30 jours. */
+    val buckets: List<Bucket> = emptyList(),
 )
 
 @Serializable
@@ -205,6 +243,13 @@ data class Runtime(
     val diskWarnedSources: Set<String> = emptySet(),
     /** Vrai quand l'hôte de référence du réseau local ne répond pas. */
     val offLan: Boolean = false,
+    /** Dernière synchronisation Homepage (ms) et son résultat. */
+    val homepageSyncAt: Long = 0,
+    val homepageSyncMessage: String? = null,
+    /** Dernière vérification de version, et version plus récente trouvée (null = à jour). */
+    val updateCheckedAt: Long = 0,
+    val updateVersion: String? = null,
+    val updateUrl: String? = null,
     val offLanSince: Long? = null,
 )
 

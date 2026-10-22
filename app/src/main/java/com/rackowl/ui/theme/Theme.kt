@@ -101,14 +101,31 @@ object Home {
 fun mono(size: Int, color: Color = Color.Unspecified, weight: FontWeight = FontWeight.Medium) =
     TextStyle(fontFamily = Mono, fontSize = size.sp, fontWeight = weight, color = color)
 
+/** Palette Material You : couleurs du fond d'écran, états (vert / rouge / orange) inchangés pour rester lisibles. */
+private fun dynamicColors(base: HomeColors, cs: androidx.compose.material3.ColorScheme) = base.copy(
+    bg = cs.background, surface = cs.surfaceContainer, field = cs.surfaceContainerLowest, nav = cs.surfaceContainerLow,
+    border = cs.outlineVariant, borderStrong = cs.outline,
+    text = cs.onSurface, textSecondary = cs.onSurfaceVariant, muted = cs.onSurfaceVariant, placeholder = cs.outline,
+    selected = cs.secondaryContainer, segmentOn = cs.secondaryContainer, segmentOnText = cs.onSecondaryContainer,
+    trackOff = cs.outline, handle = cs.outline,
+    accent = cs.primary, onAccent = cs.onPrimary, accentBg = cs.primaryContainer,
+)
+
 @Composable
-fun HomeTheme(mode: ThemeMode, content: @Composable () -> Unit) {
+fun HomeTheme(mode: ThemeMode, dynamic: Boolean = false, content: @Composable () -> Unit) {
     val dark = when (mode) {
         ThemeMode.DARK -> true
         ThemeMode.LIGHT -> false
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
     }
-    val c = if (dark) DarkColors else LightColors
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val useDynamic = dynamic && android.os.Build.VERSION.SDK_INT >= 31
+    val c = when {
+        useDynamic && dark -> dynamicColors(DarkColors, androidx.compose.material3.dynamicDarkColorScheme(ctx))
+        useDynamic -> dynamicColors(LightColors, androidx.compose.material3.dynamicLightColorScheme(ctx))
+        dark -> DarkColors
+        else -> LightColors
+    }
     val scheme = (if (dark) darkColorScheme() else lightColorScheme()).copy(
         primary = c.accent, onPrimary = c.onAccent, background = c.bg, surface = c.surface,
         onBackground = c.text, onSurface = c.text, outline = c.border, error = c.down,

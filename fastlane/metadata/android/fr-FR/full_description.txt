@@ -1,0 +1,11 @@
+<p>Rackowl surveille tes services auto-hébergés depuis ton téléphone. Tout tourne sur le téléphone : aucun serveur à héberger, aucun compte, aucun cloud.</p>
+<ul>
+<li><b>156 widgets Homepage</b>, dont 126 avec statistiques en direct : Sonarr, Radarr, Jellyfin, Proxmox, OpenMediaVault, Pi-hole, qBittorrent, Komodo, TrueNAS, UniFi, etc. Tu choisis ce que chaque tuile affiche.</li>
+<li><b>Pilotage des conteneurs</b> : ajoute un service depuis un conteneur Docker ou Komodo, puis démarre-le, redémarre-le ou arrête-le, avec confirmation.</li>
+<li><b>Des alertes fiables</b> via Android, Gotify ou ntfy : confirmation après plusieurs échecs, plages de maintenance, heures calmes et services critiques. Dehors sans VPN, les services locaux se mettent en pause au lieu de te spammer.</li>
+<li><b>Logs en direct</b> via Dozzle, une <b>vue de diagnostic</b> pour chaque widget, et la disponibilité sur 24 h, 7 jours et 30 jours.</li>
+<li><b>Widgets d’écran d’accueil</b>, raccourcis et tuile des réglages rapides, plus une surveillance continue en option.</li>
+<li><b>Compatible Homepage</b> : import, export et synchronisation avec ton instance Homepage.</li>
+<li>Les clés API sont chiffrées sur le téléphone et jamais incluses dans les sauvegardes, avec un verrouillage par empreinte en option.</li>
+<li>Anglais et français, thème sombre, clair ou Material You, mise en page tablette.</li>
+</ul>

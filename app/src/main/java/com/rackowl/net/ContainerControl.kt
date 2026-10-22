@@ -27,6 +27,21 @@ object ContainerControl {
         return candidates.firstOrNull { it.id == s.containerSource } ?: candidates.singleOrNull()
     }
 
+    /** Pilotable : par une source Docker / Komodo, sinon par Dozzle si ses actions sont activées. */
+    fun canControl(s: Service, settings: Settings) = s.container != null && (sourceFor(s, settings) != null || settings.dozzleUrl.isNotBlank())
+
+    /** Nom affiché du serveur du conteneur. */
+    fun serverName(s: Service, settings: Settings) = s.containerHost ?: sourceFor(s, settings)?.name ?: "Dozzle".takeIf { settings.dozzleUrl.isNotBlank() }
+
+    private suspend fun dozzleContainer(http: Http, settings: Settings, s: Service): Pair<Dozzle, Dozzle.Container> {
+        val dozzle = Dozzle(http, settings.dozzleUrl, settings.dozzleUser, settings.dozzlePassword)
+        val hosts = dozzle.hosts()
+        val c = dozzle.containers().firstOrNull { it.name == s.container && (s.containerHost == null || hosts[it.host]?.name.equals(s.containerHost, true)) }
+            ?: dozzle.containers().firstOrNull { it.name == s.container }
+            ?: throw HttpException(404, t("Container ${s.container} not found in Dozzle", "Conteneur ${s.container} introuvable dans Dozzle"))
+        return dozzle to c
+    }
+
     private fun komodoHeaders(src: SourceConfig) = mapOf("x-api-key" to src.key.trim(), "x-api-secret" to src.secret.trim())
 
     private fun komodoError(r: HttpResponse): Nothing =
@@ -46,7 +61,7 @@ object ContainerControl {
 
     /** État Docker du conteneur (« running », « exited »…), ou null s'il est introuvable. */
     suspend fun state(http: Http, settings: Settings, s: Service): String? {
-        val src = sourceFor(s, settings) ?: return null
+        val src = sourceFor(s, settings) ?: return if (s.container != null && settings.dozzleUrl.isNotBlank()) dozzleContainer(http, settings, s).second.state else null
         val name = s.container ?: return null
         return when (src.type) {
             SourceType.DOCKER -> http.getJson(join(Docker.normalize(src.url), "/containers/$name/json"))["State"]["Status"].str
@@ -57,7 +72,13 @@ object ContainerControl {
     }
 
     suspend fun run(http: Http, settings: Settings, s: Service, action: Action) {
-        val src = sourceFor(s, settings) ?: throw HttpException(0, t("No Docker or Komodo source for this container", "Aucune source Docker ou Komodo pour ce conteneur"))
+        val src = sourceFor(s, settings)
+        if (src == null && s.container != null && settings.dozzleUrl.isNotBlank()) {
+            val (dozzle, c) = dozzleContainer(http, settings, s)
+            dozzle.action(c, action.docker)
+            return
+        }
+        src ?: throw HttpException(0, t("No Docker or Komodo source for this container", "Aucune source Docker ou Komodo pour ce conteneur"))
         val name = s.container ?: return
         when (src.type) {
             SourceType.DOCKER -> {

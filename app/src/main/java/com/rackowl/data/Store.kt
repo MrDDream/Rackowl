@@ -27,6 +27,9 @@ class JsonDocument<T>(
     private val file: File,
     private val serializer: KSerializer<T>,
     migrate: (T) -> T = { it },
+    /** Chiffrement au repos (texte écrit ↔ texte lu) ; identité par défaut. */
+    private val seal: (String) -> String = { it },
+    private val unseal: (String) -> String = { it },
     default: () -> T,
 ) {
     private val mutex = Mutex()
@@ -35,7 +38,7 @@ class JsonDocument<T>(
     val value: T get() = _state.value
 
     private fun load(): T? = try {
-        if (file.exists()) AppJson.decodeFromString(serializer, file.readText()) else null
+        if (file.exists()) AppJson.decodeFromString(serializer, unseal(file.readText())) else null
     } catch (e: Exception) {
         Log.w("RackowlApp", "Lecture impossible de ${file.name}", e)
         null
@@ -46,7 +49,7 @@ class JsonDocument<T>(
         if (next != _state.value) {
             _state.value = next
             val tmp = File(file.parentFile, file.name + ".tmp")
-            tmp.writeText(AppJson.encodeToString(serializer, next))
+            tmp.writeText(seal(AppJson.encodeToString(serializer, next)))
             tmp.renameTo(file)
         }
         next
@@ -56,7 +59,11 @@ class JsonDocument<T>(
 class Store(context: Context) {
     private val dir = context.filesDir
 
-    val config = JsonDocument(File(dir, "config.json"), AppConfig.serializer(), { it.copy(settings = it.settings.migrated()) }) { defaultConfig() }
+    /** Configuration chiffrée : elle contient les clés API et mots de passe des services. */
+    val config = JsonDocument(
+        File(dir, "config.json"), AppConfig.serializer(), { it.copy(settings = it.settings.migrated()) },
+        seal = Crypto::encrypt, unseal = Crypto::decrypt,
+    ) { defaultConfig() }
     val runtime = JsonDocument(File(dir, "runtime.json"), Runtime.serializer()) { Runtime() }
     val alerts = JsonDocument(File(dir, "alerts.json"), ListSerializer(AlertEvent.serializer())) { emptyList() }
 

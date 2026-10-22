@@ -1,0 +1,11 @@
+<p>Rackowl keeps an eye on your self-hosted services from your phone. Everything runs on the phone: no server to host, no account, no cloud.</p>
+<ul>
+<li><b>156 Homepage widgets</b>, 126 of them with live stats: Sonarr, Radarr, Jellyfin, Proxmox, OpenMediaVault, Pi-hole, qBittorrent, Komodo, TrueNAS, UniFi and more. Pick which stats each tile shows.</li>
+<li><b>Container control</b>: add a service from a Docker or Komodo container, then start, restart or stop it, with a confirmation.</li>
+<li><b>Reliable alerts</b> through Android, Gotify or ntfy: confirmation after several failed checks, maintenance windows, quiet hours and critical services. Away from home without VPN, local services pause instead of spamming you.</li>
+<li><b>Live logs</b> through Dozzle, a <b>diagnostic view</b> for each widget, and 24 h, 7-day and 30-day availability.</li>
+<li><b>Home-screen widgets</b>, launcher shortcuts and a Quick Settings tile, plus optional always-on monitoring.</li>
+<li><b>Homepage-friendly</b>: import, export and live sync with your Homepage instance.</li>
+<li>API keys are encrypted on the phone and never included in backups, with an optional fingerprint lock.</li>
+<li>English and French, dark, light or Material You theme, tablet layout.</li>
+</ul>

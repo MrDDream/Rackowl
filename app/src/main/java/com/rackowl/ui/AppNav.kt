@@ -4,6 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -77,8 +80,8 @@ fun AppNav(app: RackowlApp, requestedRoute: String?, onRouteConsumed: () -> Unit
         val entry by nav.currentBackStackEntryAsState()
         val route = entry?.destination?.route.orEmpty()
         val showBar = route.substringBefore('?') in setOf(Routes.DASHBOARD, Routes.ALERTS, Routes.LOGS, Routes.SETTINGS)
-        Column(Modifier.fillMaxSize().background(Home.colors.bg)) {
-            Box(Modifier.weight(1f)) {
+        val rail = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 600
+        val navHost: @Composable (Modifier) -> Unit = { m -> Box(m) {
                 NavHost(nav, startDestination = Routes.DASHBOARD) {
                     composable(Routes.DASHBOARD) { DashboardScreen(nav) }
                     composable(Routes.ALERTS) { AlertsScreen(nav) }
@@ -103,13 +106,20 @@ fun AppNav(app: RackowlApp, requestedRoute: String?, onRouteConsumed: () -> Unit
                     }
                 }
             }
-            if (showBar) BottomBar(nav, route.substringBefore('?'))
+        }
+        if (rail) Row(Modifier.fillMaxSize().background(Home.colors.bg)) {
+            if (showBar) MainNav(nav, route.substringBefore('?'), rail = true)
+            navHost(Modifier.weight(1f))
+        } else Column(Modifier.fillMaxSize().background(Home.colors.bg)) {
+            navHost(Modifier.weight(1f))
+            if (showBar) MainNav(nav, route.substringBefore('?'), rail = false)
         }
     }
 }
 
+/** Navigation principale : barre du bas sur téléphone, barre latérale sur écran large (≥ 600 dp). */
 @Composable
-private fun BottomBar(nav: NavHostController, current: String) {
+private fun MainNav(nav: NavHostController, current: String, rail: Boolean) {
     val app = LocalApp.current
     val runtime by app.store.runtime.state.collectAsStateWithLifecycle()
     val config by app.store.config.state.collectAsStateWithLifecycle()
@@ -117,13 +127,23 @@ private fun BottomBar(nav: NavHostController, current: String) {
     val ids = services.map { it.id }.toSet()
     val incidents = com.rackowl.net.Lan.visibleStatuses(runtime, services, config.settings.pingEnabled).values.count { it.up == false && it.id in ids }
     val c = Home.colors
-    Column(Modifier.background(c.nav).windowInsetsPadding(WindowInsets.navigationBars)) {
-        Divider()
-        Row(Modifier.fillMaxWidth().height(72.dp)) {
-            NavItem(HIcons.Grid, t("Dashboard", "Tableau"), current == Routes.DASHBOARD) { nav.go(Routes.DASHBOARD) }
-            NavItem(HIcons.Bell, t("Alerts", "Alertes"), current == Routes.ALERTS, badge = incidents) { nav.go(Routes.ALERTS) }
-            NavItem(HIcons.Terminal, "Logs", current == "logs") { nav.go("logs") }
-            NavItem(HIcons.Sliders, t("Settings", "Réglages"), current == Routes.SETTINGS) { nav.go(Routes.SETTINGS) }
+    val items: @Composable (Modifier) -> Unit = { m ->
+        NavItem(m, HIcons.Grid, t("Dashboard", "Tableau"), current == Routes.DASHBOARD) { nav.go(Routes.DASHBOARD) }
+        NavItem(m, HIcons.Bell, t("Alerts", "Alertes"), current == Routes.ALERTS, badge = incidents) { nav.go(Routes.ALERTS) }
+        NavItem(m, HIcons.Terminal, "Logs", current == "logs") { nav.go("logs") }
+        NavItem(m, HIcons.Sliders, t("Settings", "Réglages"), current == Routes.SETTINGS) { nav.go(Routes.SETTINGS) }
+    }
+    if (rail) {
+        Row(Modifier.fillMaxHeight().background(c.nav).windowInsetsPadding(WindowInsets.systemBars)) {
+            Column(Modifier.width(88.dp).fillMaxHeight().padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(Modifier.fillMaxWidth())
+            }
+            Box(Modifier.width(1.dp).fillMaxHeight().background(c.border))
+        }
+    } else {
+        Column(Modifier.background(c.nav).windowInsetsPadding(WindowInsets.navigationBars)) {
+            Divider()
+            Row(Modifier.fillMaxWidth().height(72.dp)) { items(Modifier.weight(1f)) }
         }
     }
 }
@@ -135,14 +155,13 @@ private fun NavHostController.go(route: String) = navigate(route) {
 }
 
 @Composable
-private fun androidx.compose.foundation.layout.RowScope.NavItem(
-    icon: ImageVector, label: String, selected: Boolean, badge: Int = 0, onClick: () -> Unit,
+private fun NavItem(
+    modifier: Modifier, icon: ImageVector, label: String, selected: Boolean, badge: Int = 0, onClick: () -> Unit,
 ) {
     val c = Home.colors
     val color = if (selected) c.accent else c.muted
     Column(
-        Modifier
-            .weight(1f)
+        modifier
             .height(72.dp)
             .clickable(role = Role.Tab, onClick = onClick)
             .semantics { if (badge > 0) contentDescription = t("$label, $badge ongoing incident${if (badge > 1) "s" else ""}", "$label, $badge incident${if (badge > 1) "s" else ""} en cours") },

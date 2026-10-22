@@ -82,6 +82,7 @@ import com.rackowl.ui.components.Segmented
 import com.rackowl.ui.components.ServiceIcon
 import com.rackowl.ui.components.SettingRow
 import com.rackowl.ui.edit
+import com.rackowl.ui.openUrl
 import com.rackowl.ui.theme.Home
 import com.rackowl.ui.theme.mono
 import com.rackowl.ui.toast
@@ -105,6 +106,8 @@ fun SettingsScreen(@Suppress("UNUSED_PARAMETER") nav: NavHostController) {
     val c = Home.colors
     val scope = rememberCoroutineScope()
     val config by app.store.config.state.collectAsStateWithLifecycle()
+    val runtime by app.store.runtime.state.collectAsStateWithLifecycle()
+    var homepageDialog by remember { mutableStateOf(false) }
     val s = config.settings
     var dialog by remember { mutableStateOf<Source?>(null) }
     var chooser by remember { mutableStateOf(false) }
@@ -223,6 +226,25 @@ fun SettingsScreen(@Suppress("UNUSED_PARAMETER") nav: NavHostController) {
                 NotifierRow(Notifier.NTFY, s, "ntfy", if (s.ntfyTopic.isBlank()) t("Not set up", "Non configuré") else "${s.ntfyUrl.substringAfter("://")}/${s.ntfyTopic}", "ntfy", { dialog = Source.NTFY }) {
                     app.edit { updateSettings { it.copy(notifier = Notifier.NTFY) } }
                 }
+                Divider()
+                SettingRow(
+                    t("Quiet hours", "Heures calmes"),
+                    t("Silent notifications, except for critical services", "Notifications silencieuses, sauf services critiques"),
+                ) {
+                    HSwitch(s.quietHours, { v -> app.edit { updateSettings { it.copy(quietHours = v) } } }, t("Quiet hours", "Heures calmes"))
+                }
+                if (s.quietHours) Row(
+                    Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    var start by remember { mutableStateOf(s.quietStart) }
+                    var end by remember { mutableStateOf(s.quietEnd) }
+                    HField(start, { v -> start = v.take(5); if (com.rackowl.data.parseHm(start) != null) app.edit { updateSettings { it.copy(quietStart = start.trim()) } } },
+                        Modifier.weight(1f), mono = true, bg = c.field, height = 40.dp, placeholder = "22:00")
+                    Text("→", color = c.muted)
+                    HField(end, { v -> end = v.take(5); if (com.rackowl.data.parseHm(end) != null) app.edit { updateSettings { it.copy(quietEnd = end.trim()) } } },
+                        Modifier.weight(1f), mono = true, bg = c.field, height = 40.dp, placeholder = "07:00")
+                }
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -231,6 +253,11 @@ fun SettingsScreen(@Suppress("UNUSED_PARAMETER") nav: NavHostController) {
                     listOf(ThemeMode.DARK to t("Dark", "Sombre"), ThemeMode.LIGHT to t("Light", "Clair"), ThemeMode.SYSTEM to t("System", "Système")), s.theme,
                     { v -> app.edit { updateSettings { it.copy(theme = v) } } }, bg = c.surface, height = 40.dp,
                 )
+                if (android.os.Build.VERSION.SDK_INT >= 31) HCard(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                    SettingRow(t("Material You colours", "Couleurs Material You"), t("Follow your wallpaper", "Suivent ton fond d’écran")) {
+                        HSwitch(s.dynamicColor, { v -> app.edit { updateSettings { it.copy(dynamicColor = v) } } }, t("Material You colours", "Couleurs Material You"))
+                    }
+                }
                 SectionTitle(t("Category navigation", "Navigation entre catégories"), Modifier.padding(top = 10.dp))
                 Segmented(
                     listOf(
@@ -245,6 +272,24 @@ fun SettingsScreen(@Suppress("UNUSED_PARAMETER") nav: NavHostController) {
                 Segmented(
                     listOf(com.rackowl.data.Language.EN to "English", com.rackowl.data.Language.FR to "Français"), s.language,
                     { v -> com.rackowl.ui.I18n.language = v; app.edit { updateSettings { it.copy(language = v) } } }, bg = c.surface, height = 40.dp,
+                )
+            }
+
+            Section(t("Security", "Sécurité")) {
+                SettingRow(
+                    t("App lock", "Verrouillage de l’app"),
+                    t("Fingerprint, face or device PIN when opening", "Empreinte, visage ou code de l’appareil à l’ouverture"),
+                ) {
+                    HSwitch(s.appLock, { v ->
+                        if (v && !com.rackowl.MainActivity.canLock(ctx)) {
+                            ctx.toast(t("Set up a screen lock on your phone first", "Configure d’abord un verrouillage d’écran sur le téléphone"))
+                        } else app.edit { updateSettings { it.copy(appLock = v) } }
+                    }, t("App lock", "Verrouillage de l’app"))
+                }
+                Text(
+                    t("API keys and passwords are encrypted on the phone and never included in Android backups.",
+                        "Les clés API et mots de passe sont chiffrés sur le téléphone et jamais inclus dans les sauvegardes Android."),
+                    fontSize = 12.sp, color = c.muted, modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
                 )
             }
 
@@ -267,8 +312,34 @@ fun SettingsScreen(@Suppress("UNUSED_PARAMETER") nav: NavHostController) {
                     importLauncher.launch(arrayOf("*/*"))
                 }
                 Divider()
-                ActionRow(HIcons.Upload, t("Export configuration", "Exporter la configuration"), t("Homepage-compatible services.yaml file", "Fichier services.yaml compatible Homepage")) {
+                ActionRow(HIcons.Upload, t("Export configuration", "Exporter la configuration"), t("services.yaml with your API keys: keep it private", "services.yaml avec tes clés API : garde-le privé")) {
                     exportLauncher.launch("services.yaml")
+                }
+                Divider()
+                ActionRow(
+                    HIcons.Refresh, t("Sync with Homepage", "Synchroniser avec Homepage"),
+                    if (s.homepageUrl.isBlank()) t("Keep services aligned with your Homepage instance", "Garde tes services alignés sur ton instance Homepage")
+                    else listOfNotNull(s.homepageUrl.substringAfter("://"), runtime.homepageSyncMessage).joinToString(" · "),
+                ) { homepageDialog = true }
+            }
+
+            Section(t("Updates", "Mises à jour")) {
+                SettingRow(
+                    t("Check for updates", "Vérifier les mises à jour"),
+                    when {
+                        runtime.updateVersion != null -> t("Version ${runtime.updateVersion} is available", "La version ${runtime.updateVersion} est disponible")
+                        runtime.updateCheckedAt > 0 -> t("Up to date · checked ${com.rackowl.data.fmtAgo(runtime.updateCheckedAt)}", "À jour · vérifié ${com.rackowl.data.fmtAgo(runtime.updateCheckedAt)}")
+                        else -> t("Once a day, from GitHub releases", "Une fois par jour, depuis les releases GitHub")
+                    },
+                    hintColor = if (runtime.updateVersion != null) c.accent else c.muted,
+                ) {
+                    HSwitch(s.checkUpdates, { v -> app.edit { updateSettings { it.copy(checkUpdates = v) } } }, t("Check for updates", "Vérifier les mises à jour"))
+                }
+                if (runtime.updateVersion != null) {
+                    Divider()
+                    ActionRow(HIcons.Download, t("Download ${runtime.updateVersion}", "Télécharger la ${runtime.updateVersion}"), "GitHub") {
+                        ctx.openUrl(runtime.updateUrl ?: com.rackowl.net.Updates.RELEASES_URL)
+                    }
                 }
             }
 
@@ -279,6 +350,7 @@ fun SettingsScreen(@Suppress("UNUSED_PARAMETER") nav: NavHostController) {
     dialog?.let { src ->
         SourceDialog(src, s, onDismiss = { dialog = null }, onSaved = { reload++ })
     }
+    if (homepageDialog) HomepageDialog(s) { homepageDialog = false }
     if (lanDialog) LanProbeDialog(s, config.allServices()) { lanDialog = false }
     if (chooser) SourceChooser(onDismiss = { chooser = false }) { type ->
         chooser = false
@@ -301,6 +373,53 @@ fun SettingsScreen(@Suppress("UNUSED_PARAMETER") nav: NavHostController) {
 }
 
 /** Hôte de référence du réseau local : détecté automatiquement ou saisi, avec test de joignabilité. */
+/** Synchronisation avec une instance Homepage (API /api/services). */
+@Composable
+private fun HomepageDialog(s: Settings, onDismiss: () -> Unit) {
+    val app = LocalApp.current
+    val c = Home.colors
+    val scope = rememberCoroutineScope()
+    var url by remember { mutableStateOf(s.homepageUrl.ifBlank { "http://192.168.1.10:3000" }) }
+    var user by remember { mutableStateOf(s.homepageUser) }
+    var password by remember { mutableStateOf(s.homepagePassword) }
+    var auto by remember { mutableStateOf(s.homepageAutoSync) }
+    var result by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    suspend fun save() = app.store.updateSettings { it.copy(homepageUrl = url.trim().trimEnd('/'), homepageUser = user.trim(), homepagePassword = password, homepageAutoSync = auto) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = c.surface,
+        title = { Text("Homepage", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = c.text) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    t("Reads your services from Homepage’s /api/services: names, links, icons and widget types. Homepage doesn’t share API keys, so yours stay in Rackowl. Nothing is deleted.",
+                        "Lit tes services depuis l’API /api/services de Homepage : noms, liens, icônes et types de widget. Homepage ne partage pas les clés API, les tiennes restent dans Rackowl. Rien n’est supprimé."),
+                    fontSize = 13.sp, color = c.textSecondary,
+                )
+                FieldLabel("URL"); HField(url, { url = it; result = null }, mono = true, bg = c.field)
+                FieldLabel(t("Username (optional, auth proxy)", "Utilisateur (optionnel, proxy d’auth)")); HField(user, { user = it }, bg = c.field)
+                FieldLabel(t("Password", "Mot de passe")); HField(password, { password = it }, bg = c.field, password = true)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(t("Sync every 6 hours", "Synchroniser toutes les 6 h"), fontSize = 14.sp, color = c.text, modifier = Modifier.weight(1f))
+                    HSwitch(auto, { auto = it }, t("Sync every 6 hours", "Synchroniser toutes les 6 h"))
+                }
+                result?.let { Text(it, fontSize = 13.sp, color = c.textSecondary) }
+                SecondaryButton(if (busy) t("Syncing…", "Synchronisation…") else t("Sync now", "Synchroniser maintenant"), {
+                    if (!busy) { busy = true; scope.launch { save(); result = app.monitor.syncHomepage(); busy = false } }
+                }, Modifier.fillMaxWidth(), height = 44.dp, radius = 12.dp, bg = c.field, fontSize = 14, enabled = url.isNotBlank())
+            }
+        },
+        confirmButton = { PrimaryButton(t("Save", "Enregistrer"), { scope.launch { save() }; onDismiss() }) },
+        dismissButton = {
+            if (s.homepageUrl.isNotBlank()) Text(t("Remove", "Retirer"), color = c.down, fontSize = 14.sp, modifier = Modifier.clickable(role = Role.Button) {
+                app.edit { updateSettings { it.copy(homepageUrl = "", homepageUser = "", homepagePassword = "") } }; onDismiss()
+            }.padding(12.dp))
+            else Text(t("Cancel", "Annuler"), color = c.textSecondary, fontSize = 14.sp, modifier = Modifier.clickable(role = Role.Button, onClick = onDismiss).padding(12.dp))
+        },
+    )
+}
+
 /** Pop-up de l'hôte de référence : détecté automatiquement ou saisi, avec test de joignabilité. */
 @Composable
 private fun LanProbeDialog(s: Settings, services: List<com.rackowl.data.Service>, onDismiss: () -> Unit) {
@@ -558,7 +677,7 @@ private fun SourceConfigDialog(initial: SourceConfig, isNew: Boolean, onDismiss:
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 FieldLabel(t("Name", "Nom"))
-                HField(name, { name = it }, bg = c.field, placeholder = "nas")
+                HField(name, { name = it }, bg = c.field, placeholder = "NAS")
                 FieldLabel("URL")
                 HField(url, { url = it; result = null }, mono = true, bg = c.field)
                 if (keyLabel != null) { FieldLabel(keyLabel); HField(key, { key = it; result = null }, bg = c.field, password = initial.type == SourceType.KOMODO) }

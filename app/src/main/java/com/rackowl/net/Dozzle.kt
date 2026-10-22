@@ -47,6 +47,19 @@ class Dozzle(private val http: Http, baseUrl: String, private val user: String, 
         return mapOf("Cookie" to cookie!!)
     }
 
+    /**
+     * Action sur un conteneur (start, stop, restart). Dozzle doit être lancé avec DOZZLE_ENABLE_ACTIONS=true,
+     * sinon la route n'existe pas (404) ou est refusée (403).
+     */
+    suspend fun action(c: Container, action: String) {
+        val r = http.request(join(base, "/api/hosts/${c.host}/containers/${c.id}/actions/$action"), "POST", authHeaders())
+        if (r.code == 404 || r.code == 403 || r.code == 405) throw HttpException(r.code, t(
+            "Actions are disabled in Dozzle (set DOZZLE_ENABLE_ACTIONS=true)",
+            "Actions désactivées dans Dozzle (active DOZZLE_ENABLE_ACTIONS=true)",
+        ))
+        if (!r.ok) throw HttpException(r.code, "HTTP ${r.code}")
+    }
+
     /** Lit les premiers évènements de /api/events/stream jusqu'à la liste des conteneurs. */
     suspend fun containers(): List<Container> = withContext(Dispatchers.IO) {
         val req = Request.Builder().url(join(base, "/api/events/stream")).apply {

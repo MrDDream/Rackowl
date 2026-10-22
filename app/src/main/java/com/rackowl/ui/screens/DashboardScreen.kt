@@ -1,6 +1,12 @@
 package com.rackowl.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.animation.core.animateDpAsState
@@ -114,7 +120,12 @@ fun DashboardScreen(nav: NavHostController) {
     val online = all.count { statuses[it.id]?.up == true }
     val settings = config.settings
 
-    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)) {
+    // Écran large (≥ 840 dp) : le détail s'ouvre dans un panneau à droite.
+    val wide = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 840
+    var selected by rememberSaveable { mutableStateOf<String?>(null) }
+    Row(Modifier.fillMaxSize()) {
+    androidx.compose.runtime.CompositionLocalProvider(LocalOpenDetail provides if (wide) ({ id: String -> selected = id }) else null) {
+    Column(Modifier.weight(1f).fillMaxHeight().windowInsetsPadding(WindowInsets.statusBars)) {
         // ---- En-tête
         when {
             editing -> Row(
@@ -224,6 +235,12 @@ fun DashboardScreen(nav: NavHostController) {
             }
         }
         }
+    }
+    }
+    if (wide && selected != null && all.any { it.id == selected }) {
+        Box(Modifier.width(1.dp).fillMaxHeight().background(c.border))
+        Box(Modifier.width(420.dp).fillMaxHeight()) { DetailScreen(nav, selected!!, onClose = { selected = null }) }
+    }
     }
 }
 
@@ -387,13 +404,24 @@ private fun CategoryHeader(
     }
 }
 
+/** Ouvre le détail dans le panneau latéral (écran large) ; null = navigation classique. */
+private val LocalOpenDetail = androidx.compose.runtime.compositionLocalOf<((String) -> Unit)?> { null }
+
+@Composable
+private fun detailOpener(nav: NavHostController): (String) -> Unit {
+    val local = LocalOpenDetail.current
+    return { id -> local?.invoke(id) ?: nav.navigate(Routes.detail(id)) }
+}
+
 /** Faux quand les pings sont désactivés : les tuiles n'affichent alors pas de point d'état. */
 private val LocalShowStatus = androidx.compose.runtime.compositionLocalOf { true }
 
 /** Grille de tuiles : 1 = liste détaillée, 2 = grille, 3 = compact, 4 = icônes. */
 @Composable
 private fun ServiceGrid(nav: NavHostController, services: List<Service>, statuses: Map<String, ServiceStatus>, colsSetting: Int) {
-    val cols = if (colsSetting == 0) 2 else colsSetting
+    val width = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
+    // « Auto » : 2 colonnes sur téléphone, 3 sur petite tablette, 4 au-delà.
+    val cols = if (colsSetting == 0) (if (width >= 840) 4 else if (width >= 600) 3 else 2) else colsSetting
     Column(verticalArrangement = Arrangement.spacedBy(if (cols >= 3) 8.dp else 12.dp)) {
         services.chunked(cols).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(if (cols >= 3) 8.dp else 12.dp)) {
@@ -466,11 +494,12 @@ private fun InfoButton(nav: NavHostController, s: Service, modifier: Modifier, c
 
 @Composable
 private fun NormalTile(nav: NavHostController, s: Service, st: ServiceStatus?, modifier: Modifier) {
+    val openDetail = detailOpener(nav)
     val c = Home.colors
     HCard(modifier, radius = 16.dp) {
         Box {
             Row(
-                Modifier.fillMaxWidth().clickable(onClickLabel = t("More info on ${s.name}", "Plus d'infos sur ${s.name}")) { nav.navigate(Routes.detail(s.id)) }
+                Modifier.fillMaxWidth().clickable(onClickLabel = t("More info on ${s.name}", "Plus d'infos sur ${s.name}")) { openDetail(s.id) }
                     .padding(start = 12.dp, end = 28.dp, top = 14.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -491,12 +520,13 @@ private fun NormalTile(nav: NavHostController, s: Service, st: ServiceStatus?, m
 
 @Composable
 private fun WideTile(nav: NavHostController, s: Service, st: ServiceStatus?, modifier: Modifier) {
+    val openDetail = detailOpener(nav)
     val c = Home.colors
     HCard(modifier, radius = 16.dp) {
         Box {
             Row(Modifier.fillMaxWidth().padding(end = 22.dp), verticalAlignment = Alignment.CenterVertically) {
                 Row(
-                    Modifier.weight(1f).clickable(onClickLabel = t("More info on ${s.name}", "Plus d'infos sur ${s.name}")) { nav.navigate(Routes.detail(s.id)) }.padding(12.dp),
+                    Modifier.weight(1f).clickable(onClickLabel = t("More info on ${s.name}", "Plus d'infos sur ${s.name}")) { openDetail(s.id) }.padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
@@ -517,10 +547,11 @@ private fun WideTile(nav: NavHostController, s: Service, st: ServiceStatus?, mod
 
 @Composable
 private fun CompactTile(nav: NavHostController, s: Service, st: ServiceStatus?, cols: Int, modifier: Modifier) {
+    val openDetail = detailOpener(nav)
     HCard(modifier, radius = 14.dp) {
         Box {
             Column(
-                Modifier.fillMaxWidth().clickable(onClickLabel = t("More info on ${s.name}", "Plus d'infos sur ${s.name}")) { nav.navigate(Routes.detail(s.id)) }
+                Modifier.fillMaxWidth().clickable(onClickLabel = t("More info on ${s.name}", "Plus d'infos sur ${s.name}")) { openDetail(s.id) }
                     .padding(start = 6.dp, end = 6.dp, top = 14.dp, bottom = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -660,9 +691,54 @@ private fun EditCategory(nav: NavHostController, cat: Category, cats: List<Categ
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionTitle("Services · ${cat.name}")
-        cat.services.forEachIndexed { i, s ->
+        // Glisser-déposer : appui long sur une ligne, puis glisser ; l'ordre est enregistré au relâchement.
+        var dragOrder by remember(cat.id) { mutableStateOf<List<String>?>(null) }
+        var dragId by remember(cat.id) { mutableStateOf<String?>(null) }
+        var dragOffset by remember(cat.id) { mutableStateOf(0f) }
+        val rowHeights = remember(cat.id) { mutableMapOf<String, Int>() }
+        val spacing = with(androidx.compose.ui.platform.LocalDensity.current) { 8.dp.toPx() }
+        val byId = cat.services.associateBy { it.id }
+        val ordered = (dragOrder ?: cat.services.map { it.id }).mapNotNull { byId[it] }
+        ordered.forEachIndexed { i, s -> androidx.compose.runtime.key(s.id) {
+            val dragging = dragId == s.id
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.surface).border(1.dp, c.border, RoundedCornerShape(12.dp))
+                Modifier.fillMaxWidth()
+                    .onGloballyPositioned { rowHeights[s.id] = it.size.height }
+                    .zIndex(if (dragging) 1f else 0f)
+                    .graphicsLayer {
+                        translationY = if (dragging) dragOffset else 0f
+                        shadowElevation = if (dragging) 12f else 0f
+                        scaleX = if (dragging) 1.02f else 1f; scaleY = scaleX
+                    }
+                    .pointerInput(s.id, cat.services) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { dragOrder = cat.services.map { it.id }; dragId = s.id; dragOffset = 0f },
+                            onDrag = { change, amount ->
+                                change.consume()
+                                dragOffset += amount.y
+                                val order = dragOrder?.toMutableList() ?: return@detectDragGesturesAfterLongPress
+                                val idx = order.indexOf(s.id)
+                                val next = order.getOrNull(idx + 1)?.let { rowHeights[it] }
+                                val prev = order.getOrNull(idx - 1)?.let { rowHeights[it] }
+                                // Échange avec le voisin quand on dépasse sa moitié.
+                                if (next != null && dragOffset > (next + spacing) / 2) {
+                                    order.swapInPlace(idx, idx + 1); dragOffset -= next + spacing; dragOrder = order
+                                } else if (prev != null && dragOffset < -(prev + spacing) / 2) {
+                                    order.swapInPlace(idx, idx - 1); dragOffset += prev + spacing; dragOrder = order
+                                }
+                            },
+                            onDragEnd = {
+                                val order = dragOrder
+                                if (order != null && order != cat.services.map { it.id }) app.edit {
+                                    updateCategories { list -> list.map { cc -> if (cc.id == cat.id) cc.copy(services = order.mapNotNull { id -> cc.services.firstOrNull { it.id == id } }) else cc } }
+                                }
+                                dragId = null; dragOffset = 0f; dragOrder = null
+                            },
+                            onDragCancel = { dragId = null; dragOffset = 0f; dragOrder = null },
+                        )
+                    }
+                    .clip(RoundedCornerShape(12.dp)).background(if (dragging) c.selected else c.surface)
+                    .border(1.dp, if (dragging) c.accent else c.border, RoundedCornerShape(12.dp))
                     .padding(start = 8.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -688,7 +764,8 @@ private fun EditCategory(nav: NavHostController, cat: Category, cats: List<Categ
                     size = 40.dp, iconSize = 20.dp, tint = if (s.hidden) c.warn else c.textSecondary,
                 )
             }
-        }
+        } }
+        Text(t("Long-press a row to drag it.", "Appui long sur une ligne pour la déplacer."), fontSize = 12.sp, color = c.muted, modifier = Modifier.padding(horizontal = 4.dp))
         DashedButton(t("Add a service here", "Ajouter un service ici")) { nav.navigate(Routes.edit(category = cat.id)) }
     }
 }
@@ -717,3 +794,5 @@ fun Modifier.drawDashedBorder(color: Color, radius: androidx.compose.ui.unit.Dp)
         )
     },
 )
+
+private fun <T> MutableList<T>.swapInPlace(i: Int, j: Int) { val tmp = this[i]; this[i] = this[j]; this[j] = tmp }

@@ -36,8 +36,27 @@ class HttpException(val code: Int, message: String) : IOException(message)
 val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
 val FORM_MEDIA = "application/x-www-form-urlencoded".toMediaType()
 
+/** Un échange enregistré pour la vue de diagnostic, secrets masqués. */
+data class Exchange(
+    val method: String, val url: String, val requestHeaders: Map<String, String>,
+    val code: Int?, val ms: Long, val responseHeaders: Map<String, String>, val body: String, val error: String?,
+)
+
+private val SECRET_PARAM = Regex("([?&](?:api_?key|apikey|token|key|passwd|password|secret|auth|sid|_sid)=)[^&]*", RegexOption.IGNORE_CASE)
+private val SECRET_HEADER = Regex("authorization|cookie|set-cookie|.*api[-_]?key.*|.*token.*|.*secret.*|.*sid.*|password|key", RegexOption.IGNORE_CASE)
+
+/** Masque les secrets d'une URL (paramètres de requête) et d'un corps JSON (champs « password », « token »…). */
+fun maskSecrets(text: String): String =
+    text.replace(SECRET_PARAM, "$1•••")
+        .replace(Regex("(\"(?:password|passwd|token|apiKey|api_key|secret|access_token|sid)\"\\s*:\\s*\")[^\"]*", RegexOption.IGNORE_CASE), "$1•••")
+
+fun maskHeaders(h: Map<String, String>) = h.mapValues { (k, v) -> if (SECRET_HEADER.matches(k)) "•••" else v }
+
 /** Client HTTP partagé. [insecure] accepte les certificats auto-signés (réglage explicite). */
 class Http(insecure: Boolean) {
+    /** Si défini, chaque requête y est rapportée (vue de diagnostic). */
+    var recorder: ((Exchange) -> Unit)? = null
+
     val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
@@ -70,9 +89,21 @@ class Http(insecure: Boolean) {
             method(method, body ?: if (method == "POST" || method == "PUT") ByteArray(0).toRequestBody(null) else null)
         }.build()
         val start = System.nanoTime()
-        client.newCall(req).execute().use { resp ->
-            val text = resp.body?.string().orEmpty()
-            HttpResponse(resp.code, text, resp.headers.toMultimap(), (System.nanoTime() - start) / 1_000_000)
+        try {
+            client.newCall(req).execute().use { resp ->
+                val text = resp.body?.string().orEmpty()
+                val ms = (System.nanoTime() - start) / 1_000_000
+                recorder?.invoke(
+                    Exchange(
+                        method, maskSecrets(url), maskHeaders(headers), resp.code, ms,
+                        maskHeaders(resp.headers.toMultimap().mapValues { it.value.joinToString(", ") }), maskSecrets(text.take(4000)), null,
+                    ),
+                )
+                HttpResponse(resp.code, text, resp.headers.toMultimap(), ms)
+            }
+        } catch (e: IOException) {
+            recorder?.invoke(Exchange(method, maskSecrets(url), maskHeaders(headers), null, (System.nanoTime() - start) / 1_000_000, emptyMap(), "", e.toString()))
+            throw e
         }
     }
 

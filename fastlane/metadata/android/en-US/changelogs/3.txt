@@ -1,0 +1,27 @@
+Rackowl 0.3.0
+
+Security
+- API keys and passwords are encrypted on the phone (Android Keystore) and excluded from Android backups
+- Optional app lock with fingerprint, face or device PIN
+
+Alerts
+- Alert only after N failed checks in a row, per service
+- One-off maintenance (1 h, 4 h, until tomorrow) and daily maintenance windows
+- Quiet hours with silent notifications, except for critical services
+
+Monitoring
+- Diagnostic view for each service: every request, status and response, with secrets masked
+- Availability over 24 hours, 7 days and 30 days
+- TCP port checks (tcp://host:port) and expected-text checks
+- Container actions through Dozzle when no Docker or Komodo source is set
+- Live sync with a Homepage instance through its /api/services API
+
+Everyday use
+- Drag and drop to reorder services
+- Real service logos in home-screen widgets
+- Material You colours (Android 12+)
+- Launcher shortcuts and a Quick Settings tile
+- Tablet layout: navigation rail, more columns and a side detail pane
+- Daily check for new versions on GitHub
+
+Rackowl is now licensed under GPL-3.0.

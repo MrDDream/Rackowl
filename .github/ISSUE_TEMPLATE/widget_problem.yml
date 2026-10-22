@@ -1,0 +1,29 @@
+name: A widget shows no data or wrong data
+description: A service widget fails, stays empty or shows wrong numbers.
+title: "[Widget] "
+labels: [widget]
+body:
+  - type: input
+    id: integration
+    attributes:
+      label: Integration
+      placeholder: Sonarr, Proxmox, OpenMediaVault…
+    validations:
+      required: true
+  - type: input
+    id: service-version
+    attributes:
+      label: Service version
+      placeholder: e.g. Sonarr 4.0.10
+  - type: textarea
+    id: diagnostic
+    attributes:
+      label: Diagnostic report
+      description: In Rackowl, open the service, tap the bug icon (Diagnostic), then Copy and paste the report here. Keys and passwords are masked, but please double-check before posting.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to see?

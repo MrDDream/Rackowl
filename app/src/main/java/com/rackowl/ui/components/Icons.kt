@@ -77,5 +77,7 @@ object HIcons {
             stroke = SolidColor(Color.Black), strokeLineWidth = 1.8f, strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round,
         )
     }.build()
+    val Wrench = stroke("wrench", "M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4l-2.4 2.4-2.6-.4-.4-2.6z")
+    val Bug = stroke("bug", "M9 9V7a3 3 0 0 1 6 0v2", rect(7f, 9f, 10f, 11f, 5f), "M12 13v7M3 13h4M17 13h4M4 8l3 2M20 8l-3 2M4 19l3-2M20 19l-3-2")
     val Activity = stroke("activity", "M3 12h4l3-8 4 16 3-8h4")
 }

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Raccourcis de l'icône (appui long) : écran ouvert via l'extra « route » de MainActivity. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="alerts" android:enabled="true" android:icon="@drawable/ic_shortcut_alerts" android:shortcutShortLabel="@string/shortcut_alerts">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="com.rackowl" android:targetClass="com.rackowl.MainActivity">
+            <extra android:name="route" android:value="alerts" />
+        </intent>
+    </shortcut>
+    <shortcut android:shortcutId="logs" android:enabled="true" android:icon="@drawable/ic_shortcut_logs" android:shortcutShortLabel="@string/shortcut_logs">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="com.rackowl" android:targetClass="com.rackowl.MainActivity">
+            <extra android:name="route" android:value="logs" />
+        </intent>
+    </shortcut>
+    <shortcut android:shortcutId="add" android:enabled="true" android:icon="@drawable/ic_shortcut_add" android:shortcutShortLabel="@string/shortcut_add">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="com.rackowl" android:targetClass="com.rackowl.MainActivity">
+            <extra android:name="route" android:value="edit" />
+        </intent>
+    </shortcut>
+</shortcuts>

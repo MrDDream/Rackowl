@@ -102,6 +102,12 @@ fun EditServiceScreen(nav: NavHostController, serviceId: String?, categoryId: St
     var iconTouched by rememberSaveable { mutableStateOf(original != null) }
     var monitor by rememberSaveable { mutableStateOf(original?.monitor ?: true) }
     var showInWidget by rememberSaveable { mutableStateOf(original?.showInWidget ?: true) }
+    var confirmChecks by rememberSaveable { mutableStateOf(original?.confirmChecks ?: 1) }
+    var critical by rememberSaveable { mutableStateOf(original?.critical ?: false) }
+    var expectText by rememberSaveable { mutableStateOf(original?.expectText.orEmpty()) }
+    val origWindow = original?.maintenanceWindow?.let { com.rackowl.data.splitWindow(it) }
+    var windowStart by rememberSaveable { mutableStateOf(origWindow?.first.orEmpty()) }
+    var windowEnd by rememberSaveable { mutableStateOf(origWindow?.second.orEmpty()) }
     var interval by rememberSaveable { mutableStateOf(original?.pingIntervalSec ?: 30) }
     var custom by rememberSaveable { mutableStateOf(original != null && original.pingIntervalSec !in INTERVALS) }
     var customValue by rememberSaveable { mutableStateOf(((original?.pingIntervalSec ?: 90).let { if (it % 60 == 0) it / 60 else it }).toString()) }
@@ -148,11 +154,13 @@ fun EditServiceScreen(nav: NavHostController, serviceId: String?, categoryId: St
         name = name.trim(), url = url.trim(), description = description.trim(), widget = widget,
         apiKey = apiKey.trim(), username = username.trim(), password = password,
         icon = icon.trim(), monitor = monitor, pingIntervalSec = intervalSec(), showInWidget = showInWidget,
+        confirmChecks = confirmChecks, critical = critical, expectText = expectText.trim(),
+        maintenanceWindow = if (com.rackowl.data.parseHm(windowStart) != null && com.rackowl.data.parseHm(windowEnd) != null) "${windowStart.trim()}-${windowEnd.trim()}" else "",
         container = container, containerSource = containerSource, containerHost = containerHost,
         tileStats = if (widget == original?.widget || testStats != null) tileStats.sorted() else emptyList(),
     )
 
-    val valid = name.isNotBlank() && Regex("^https?://.+").matches(url.trim())
+    val valid = name.isNotBlank() && (Regex("^https?://.+").matches(url.trim()) || Regex("^tcp://[^:/]+:\\d+$").matches(url.trim()))
 
     fun save() {
         val s = build()
@@ -172,15 +180,23 @@ fun EditServiceScreen(nav: NavHostController, serviceId: String?, categoryId: St
         testing = true; testResult = null
         scope.launch {
             val s = build()
+            if (s.url.startsWith("tcp://")) {
+                val r = runCatching { Monitor.tcpCheck(s.url) }
+                testResult = r.isSuccess to r.fold({ t("TCP port open in $it ms", "Port TCP ouvert en $it ms") }, { Monitor.describe(it) })
+                testing = false
+                return@launch
+            }
             val ping = runCatching { app.http().get(s.url) }
-            val pingMsg = ping.fold({ t("HTTP ${it.code} in ${it.latencyMs} ms", "HTTP ${it.code} en ${it.latencyMs} ms") }, { Monitor.describe(it) })
+            val textMissing = ping.getOrNull()?.let { s.expectText.isNotBlank() && !it.body.contains(s.expectText) } == true
+            val pingMsg = ping.fold({ t("HTTP ${it.code} in ${it.latencyMs} ms", "HTTP ${it.code} en ${it.latencyMs} ms") }, { Monitor.describe(it) }) +
+                if (textMissing) t(" · expected text missing", " · texte attendu absent") else ""
             val widgetResult = Integrations.byId(s.widget)?.let { i -> runCatching { i.fetch(app.http(), s) } }
             widgetResult?.getOrNull()?.let { testStats = it.stats }
             val widgetMsg = widgetResult?.fold(
                 { d -> if (d.stats.isEmpty()) null else d.stats.joinToString(" · ") { "${it.value} ${it.label}" } },
                 { "Widget : " + Monitor.describe(it) },
             )
-            val ok = ping.getOrNull()?.code?.let { it < 500 } == true && widgetResult?.isFailure != true
+            val ok = ping.getOrNull()?.code?.let { it < 500 } == true && !textMissing && widgetResult?.isFailure != true
             testResult = ok to listOfNotNull(pingMsg, widgetMsg).joinToString("\n")
             testing = false
         }
@@ -431,6 +447,47 @@ fun EditServiceScreen(nav: NavHostController, serviceId: String?, categoryId: St
                 Divider()
                 SettingRow(t("Show in the Android widget", "Afficher dans le widget Android"), t("Phone home screen", "Écran d’accueil du téléphone")) {
                     HSwitch(showInWidget, { showInWidget = it }, t("Show in the Android widget", "Afficher dans le widget Android"))
+                }
+            }
+
+            // ---- Alertes
+            if (monitor) HCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(t("Alert after", "Alerter après"), fontSize = 14.sp)
+                    Segmented(
+                        listOf(1 to t("1 check", "1 échec"), 2 to "2", 3 to "3", 5 to "5"), confirmChecks, { confirmChecks = it },
+                    )
+                    Text(
+                        t("Failed checks in a row before reporting the service offline. Avoids alerts for a short blip.",
+                            "Vérifications ratées d’affilée avant de déclarer le service hors ligne. Évite les alertes pour une coupure brève."),
+                        fontSize = 12.sp, color = c.muted,
+                    )
+                }
+                Divider()
+                SettingRow(t("Critical", "Critique"), t("Alerts ring even during quiet hours", "Les alertes sonnent même pendant les heures calmes")) {
+                    HSwitch(critical, { critical = it }, t("Critical", "Critique"))
+                }
+                Divider()
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(t("Daily maintenance", "Maintenance quotidienne"), fontSize = 14.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        HField(windowStart, { windowStart = it.take(5) }, Modifier.weight(1f), mono = true, bg = c.field, placeholder = "02:00", height = 40.dp)
+                        Text("→", color = c.muted)
+                        HField(windowEnd, { windowEnd = it.take(5) }, Modifier.weight(1f), mono = true, bg = c.field, placeholder = "04:00", height = 40.dp)
+                    }
+                    Text(t("No alerts during this window, every day (e.g. nightly backups).", "Aucune alerte dans cette plage, chaque jour (ex. sauvegardes nocturnes)."), fontSize = 12.sp, color = c.muted)
+                }
+                if (!url.trim().startsWith("tcp://")) {
+                    Divider()
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(t("Expected text", "Texte attendu"), fontSize = 14.sp)
+                        HField(expectText, { expectText = it }, bg = c.field, placeholder = t("Optional, e.g. Welcome", "Optionnel, ex. Bienvenue"), height = 40.dp)
+                        Text(
+                            t("The page must contain this text to count as online. Use tcp://host:port as the URL to check a port instead.",
+                                "La page doit contenir ce texte pour être considérée en ligne. Mets tcp://hôte:port comme URL pour vérifier un port à la place."),
+                            fontSize = 12.sp, color = c.muted,
+                        )
+                    }
                 }
             }
 

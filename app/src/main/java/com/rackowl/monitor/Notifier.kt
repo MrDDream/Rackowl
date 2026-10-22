@@ -14,6 +14,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.rackowl.MainActivity
 import com.rackowl.R
+import com.rackowl.ui.t
 import com.rackowl.data.AlertEvent
 import com.rackowl.data.AlertKind
 import com.rackowl.data.Notifier
@@ -31,20 +32,20 @@ class AlertNotifier(private val context: Context) {
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
-    suspend fun send(http: Http, settings: Settings, e: AlertEvent) {
+    suspend fun send(http: Http, settings: Settings, e: AlertEvent, silent: Boolean = false) {
         if (System.currentTimeMillis() < settings.muteUntil) return
         val title = "${e.service} · ${e.title}"
         try {
             when (settings.notifier) {
-                Notifier.ANDROID -> android(e, title)
+                Notifier.ANDROID -> android(e, title, silent)
                 Notifier.GOTIFY -> {
-                    val body = """{"title":${q(title)},"message":${q(e.detail)},"priority":${if (e.kind == AlertKind.DOWN) 8 else 5}}"""
+                    val body = """{"title":${q(title)},"message":${q(e.detail)},"priority":${if (silent) 2 else if (e.kind == AlertKind.DOWN) 8 else 5}}"""
                     http.postJson(join(settings.gotifyUrl, "/message?token=${settings.gotifyToken}"), body)
                 }
                 Notifier.NTFY -> {
                     val h = buildMap {
                         put("Title", title)
-                        put("Priority", if (e.kind == AlertKind.DOWN) "high" else "default")
+                        put("Priority", if (silent) "low" else if (e.kind == AlertKind.DOWN) "high" else "default")
                         put("Tags", when (e.kind) { AlertKind.DOWN -> "red_circle"; AlertKind.UP -> "green_circle"; AlertKind.WARN -> "warning" })
                         if (settings.ntfyToken.isNotBlank()) put("Authorization", "Bearer ${settings.ntfyToken}")
                     }
@@ -53,11 +54,11 @@ class AlertNotifier(private val context: Context) {
             }
         } catch (ex: Exception) {
             Log.w("RackowlApp", "Envoi de l'alerte impossible, repli sur Android", ex)
-            android(e, title)
+            android(e, title, silent)
         }
     }
 
-    private fun android(e: AlertEvent, title: String) {
+    private fun android(e: AlertEvent, title: String, silent: Boolean = false) {
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return
@@ -72,15 +73,39 @@ class AlertNotifier(private val context: Context) {
             .setContentText(e.detail)
             .setColor(0xFF3DD6B5.toInt())
             .setAutoCancel(true)
+            .setSilent(silent)
             .setContentIntent(intent)
             .setPriority(if (e.kind == AlertKind.DOWN) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
             .build()
         NotificationManagerCompat.from(context).notify(e.serviceId?.hashCode() ?: e.id.hashCode(), n)
     }
 
+    /** Notification « nouvelle version disponible », qui ouvre la page de la release. */
+    fun update(version: String, url: String) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) return
+        context.getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(UPDATES, t("Updates", "Mises à jour"), NotificationManager.IMPORTANCE_DEFAULT),
+        )
+        val open = PendingIntent.getActivity(
+            context, 3, Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)), PendingIntent.FLAG_IMMUTABLE,
+        )
+        val n = NotificationCompat.Builder(context, UPDATES)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(t("Rackowl $version is available", "Rackowl $version est disponible"))
+            .setContentText(t("Tap to download it from GitHub", "Touche pour la télécharger sur GitHub"))
+            .setColor(0xFF3DD6B5.toInt())
+            .setAutoCancel(true)
+            .setContentIntent(open)
+            .build()
+        NotificationManagerCompat.from(context).notify(7, n)
+    }
+
     private fun q(s: String) = "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n") + "\""
 
     companion object {
         const val CHANNEL = "alerts"
+        const val UPDATES = "updates"
     }
 }

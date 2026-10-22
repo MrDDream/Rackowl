@@ -13,6 +13,8 @@ import com.rackowl.data.Service
 import com.rackowl.data.ServiceStatus
 import com.rackowl.data.Store
 import com.rackowl.data.allServices
+import com.rackowl.data.inMaintenance
+import com.rackowl.data.inQuietHours
 import com.rackowl.data.fmtDuration
 import com.rackowl.data.fmtPercent
 import com.rackowl.integrations.GlancesClient
@@ -58,6 +60,14 @@ class Monitor(
             store.runtime.update { it.copy(offLan = offLan, offLanSince = if (offLan) now else null) }
             stateChanged.set(true)
         }
+        // Synchronisation Homepage automatique, toutes les 6 h.
+        if (cfg.settings.homepageUrl.isNotBlank() && cfg.settings.homepageAutoSync && now - store.runtime.value.homepageSyncAt > 6 * 3600_000L) {
+            syncHomepage()
+        }
+
+        // Nouvelle version sur GitHub ? Une fois par jour.
+        if (cfg.settings.checkUpdates && now - store.runtime.value.updateCheckedAt > 86_400_000L) checkUpdates()
+
         // De retour sur le réseau : tout revérifier tout de suite.
         val forceAll = force || (wasOffLan && !offLan)
 
@@ -90,6 +100,27 @@ class Monitor(
         }
     }
 
+    /** Interroge GitHub ; notifie une seule fois par nouvelle version. */
+    suspend fun checkUpdates() {
+        val release = runCatching { com.rackowl.net.Updates.check(http()) }.getOrNull()
+        val previous = store.runtime.value.updateVersion
+        store.runtime.update { it.copy(updateCheckedAt = System.currentTimeMillis(), updateVersion = release?.version, updateUrl = release?.url) }
+        if (release != null && release.version != previous) notifier.update(release.version, release.url)
+    }
+
+    /** Synchronise la configuration avec Homepage ; renvoie le message de résultat. */
+    suspend fun syncHomepage(): String {
+        val s = store.config.value.settings
+        val message = runCatching {
+            val json = com.rackowl.data.HomepageSync.fetch(http(), s.homepageUrl, s.homepageUser, s.homepagePassword)
+            var result: com.rackowl.data.HomepageSync.Result? = null
+            store.config.update { cfg -> com.rackowl.data.HomepageSync.merge(cfg, json).also { result = it }.config }
+            t("${result!!.added} added · ${result!!.updated} updated", "${result!!.added} ajouté(s) · ${result!!.updated} mis à jour")
+        }.getOrElse { describe(it) }
+        store.runtime.update { it.copy(homepageSyncAt = System.currentTimeMillis(), homepageSyncMessage = message) }
+        return message
+    }
+
     suspend fun refreshService(id: String) {
         val s = store.config.value.allServices().firstOrNull { it.id == id } ?: return
         if (s.monitor && store.config.value.settings.pingEnabled) ping(s)
@@ -105,10 +136,15 @@ class Monitor(
         for (i in 1..ATTEMPTS) {
             attempts = i
             try {
+                if (s.url.startsWith("tcp://")) {
+                    // Contrôle TCP : le port accepte-t-il une connexion ?
+                    latency = tcpCheck(s.url); error = null; break
+                }
                 val r = http().get(s.url)
                 code = r.code
-                if (r.code < 500) { latency = r.latencyMs; error = null; break }
-                error = "HTTP ${r.code}"
+                val textOk = s.expectText.isBlank() || r.body.contains(s.expectText)
+                if (r.code < 500 && textOk) { latency = r.latencyMs; error = null; break }
+                error = if (r.code < 500) t("Expected text missing", "Texte attendu absent") else "HTTP ${r.code}"
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -127,6 +163,16 @@ class Monitor(
         var event: AlertEvent? = null
         store.runtime.update { rt ->
             val prev = rt.statuses[s.id] ?: ServiceStatus(s.id)
+            val failures = if (up) 0 else prev.consecutiveFailures + 1
+            // Échec pas encore confirmé (Service.confirmChecks) : on garde l'état précédent, sans alerte.
+            if (!up && failures < s.confirmChecks && prev.up != false) {
+                val pending = prev.copy(
+                    checkedAt = now, consecutiveFailures = failures, error = error,
+                    history = appendSample(prev.history, Sample(now, null), now),
+                    buckets = appendBucket(prev.buckets, now, null),
+                )
+                return@update rt.copy(statuses = rt.statuses + (s.id to pending))
+            }
             val wasUp = prev.up
             val downSince = when {
                 up -> null
@@ -148,11 +194,14 @@ class Monitor(
             val next = prev.copy(
                 up = up, latencyMs = latency, httpCode = code, error = if (up) null else error,
                 checkedAt = now, downSince = downSince, failedAttempts = if (up) 0 else attempts,
+                consecutiveFailures = failures,
                 history = appendSample(prev.history, Sample(now, latency), now),
+                buckets = appendBucket(prev.buckets, now, latency),
             )
             rt.copy(statuses = rt.statuses + (s.id to next))
         }
-        event?.let { emit(it) }
+        // Maintenance : l'état est suivi, mais aucune alerte n'est émise.
+        event?.takeIf { !s.inMaintenance(now) }?.let { emit(it, s.critical) }
         return event != null
     }
 
@@ -198,9 +247,11 @@ class Monitor(
         event?.let { emit(it) }
     }
 
-    private suspend fun emit(e: AlertEvent) {
+    private suspend fun emit(e: AlertEvent, critical: Boolean = false) {
         store.addAlert(e)
-        notifier.send(http(), store.config.value.settings, e)
+        val settings = store.config.value.settings
+        // Heures calmes : notification silencieuse, sauf pour un service critique.
+        notifier.send(http(), settings, e, silent = settings.inQuietHours() && !critical)
     }
 
     companion object {
@@ -208,6 +259,31 @@ class Monitor(
         private const val ATTEMPTS = 3
         private const val BUCKET_MS = 5 * 60_000L
         private const val HISTORY_MS = 24 * 3600_000L
+
+        /** Connexion TCP de 5 s vers tcp://hôte:port ; renvoie la latence en ms. */
+        suspend fun tcpCheck(url: String): Long = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val uri = java.net.URI(url)
+            val start = System.nanoTime()
+            java.net.Socket().use { it.connect(java.net.InetSocketAddress(uri.host, uri.port), 5_000) }
+            (System.nanoTime() - start) / 1_000_000
+        }
+
+        private const val LONG_BUCKET_MS = 6 * 3600_000L
+        private const val LONG_HISTORY_MS = 30 * 86_400_000L
+
+        /** Historique long : une tranche par 6 h sur 30 jours, comptant réussites et échecs. */
+        fun appendBucket(buckets: List<com.rackowl.data.Bucket>, now: Long, latency: Long?): List<com.rackowl.data.Bucket> {
+            val start = now - now % LONG_BUCKET_MS
+            val kept = buckets.filter { now - it.t < LONG_HISTORY_MS }
+            val last = kept.lastOrNull()
+            val base = if (last != null && last.t == start) last else com.rackowl.data.Bucket(start)
+            val next = base.copy(
+                up = base.up + if (latency != null) 1 else 0,
+                total = base.total + 1,
+                latencySum = base.latencySum + (latency ?: 0),
+            )
+            return if (last != null && last.t == start) kept.dropLast(1) + next else kept + next
+        }
 
         /** Un point par tranche de 5 min sur 24 h ; une panne dans la tranche l'emporte. */
         fun appendSample(history: List<Sample>, s: Sample, now: Long): List<Sample> {

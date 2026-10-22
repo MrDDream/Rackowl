@@ -47,6 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.rackowl.data.Sample
 import com.rackowl.data.categoryOf
+import com.rackowl.data.inMaintenance
 import com.rackowl.data.findService
 import com.rackowl.data.fmtAgo
 import com.rackowl.data.fmtDec
@@ -67,6 +68,7 @@ import com.rackowl.ui.components.SectionTitle
 import com.rackowl.ui.components.StatusDot
 import com.rackowl.ui.components.ServiceIcon
 import com.rackowl.ui.components.levelColor
+import com.rackowl.ui.edit
 import com.rackowl.ui.openUrl
 import com.rackowl.ui.theme.Home
 import com.rackowl.ui.theme.mono
@@ -75,7 +77,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun DetailScreen(nav: NavHostController, id: String) {
+fun DetailScreen(nav: NavHostController, id: String, onClose: (() -> Unit)? = null) {
     val app = LocalApp.current
     val ctx = LocalContext.current
     val config by app.store.config.state.collectAsStateWithLifecycle()
@@ -84,17 +86,43 @@ fun DetailScreen(nav: NavHostController, id: String) {
     val c = Home.colors
     val s = config.findService(id)
     if (s == null) {
-        LaunchedEffect(Unit) { nav.popBackStack() }
+        LaunchedEffect(Unit) { onClose?.invoke() ?: nav.popBackStack() }
         return
     }
     val st = runtime.statuses[id]
     val settings = config.settings
     LaunchedEffect(id) { app.monitor.refreshService(id) }
+    var showDiagnostic by remember { mutableStateOf(false) }
+    var maintenanceMenu by remember { mutableStateOf(false) }
+    if (showDiagnostic) DiagnosticDialog(s) { showDiagnostic = false }
 
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars).windowInsetsPadding(WindowInsets.navigationBars)) {
         Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 16.dp, bottom = 8.dp)) {
-            IconBtn(HIcons.Back, t("Back", "Retour"), { nav.popBackStack() })
+            IconBtn(HIcons.Back, t("Back", "Retour"), { onClose?.invoke() ?: nav.popBackStack() })
             Spacer(Modifier.weight(1f))
+            IconBtn(HIcons.Bug, t("Diagnostic", "Diagnostic"), { showDiagnostic = true }, iconSize = 20.dp)
+            Box {
+                IconBtn(HIcons.Wrench, t("Maintenance", "Maintenance"), { maintenanceMenu = true }, iconSize = 20.dp,
+                    tint = if (s.inMaintenance()) c.warn else c.textSecondary)
+                // Maintenance ponctuelle : pas d'alerte pendant la durée choisie.
+                androidx.compose.material3.DropdownMenu(maintenanceMenu, { maintenanceMenu = false }, containerColor = c.surface) {
+                    fun set(until: Long) {
+                        maintenanceMenu = false
+                        app.edit { saveService(s.copy(maintenanceUntil = until), config.categoryOf(id)?.id ?: return@edit) }
+                    }
+                    val now = System.currentTimeMillis()
+                    listOf(3600_000L to t("1 hour", "1 heure"), 4 * 3600_000L to t("4 hours", "4 heures")).forEach { (d, label) ->
+                        androidx.compose.material3.DropdownMenuItem({ Text(t("Maintenance · $label", "Maintenance · $label")) }, { set(now + d) })
+                    }
+                    androidx.compose.material3.DropdownMenuItem({ Text(t("Until tomorrow 8:00", "Jusqu’à demain 8 h")) }, {
+                        set(java.util.Calendar.getInstance().apply {
+                            add(java.util.Calendar.DAY_OF_YEAR, 1); set(java.util.Calendar.HOUR_OF_DAY, 8)
+                            set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0)
+                        }.timeInMillis)
+                    })
+                    if (s.maintenanceUntil > now) androidx.compose.material3.DropdownMenuItem({ Text(t("End maintenance", "Terminer la maintenance"), color = c.down) }, { set(0) })
+                }
+            }
             IconBtn(HIcons.Edit, t("Edit service", "Modifier le service"), { nav.navigate(Routes.edit(id)) }, iconSize = 20.dp)
         }
         Column(
@@ -124,11 +152,23 @@ fun DetailScreen(nav: NavHostController, id: String) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 config.categoryOf(id)?.let { Pill(it.name, c.textSecondary, c.selected) }
                 // Serveur qui héberge le conteneur (serveur Komodo, ou nom de la source Docker).
-                val server = s.containerHost ?: ContainerControl.sourceFor(s, settings)?.name
+                val server = ContainerControl.serverName(s, settings)
                 if (s.container != null && server != null) Pill(server, c.textSecondary, c.selected)
             }
 
-            val canControl = s.container != null && ContainerControl.sourceFor(s, settings) != null
+            if (s.inMaintenance()) Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.warnBg).padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                androidx.compose.material3.Icon(HIcons.Wrench, null, Modifier.size(18.dp), tint = c.warn)
+                Text(
+                    if (s.maintenanceUntil > System.currentTimeMillis()) t("Maintenance until ${com.rackowl.data.fmtClock(s.maintenanceUntil)} · no alerts", "Maintenance jusqu’à ${com.rackowl.data.fmtClock(s.maintenanceUntil)} · pas d’alerte")
+                    else t("Daily maintenance window · no alerts", "Plage de maintenance quotidienne · pas d’alerte"),
+                    fontSize = 13.sp, color = c.warn,
+                )
+            }
+
+            val canControl = ContainerControl.canControl(s, settings)
             val canLogs = s.container != null && settings.dozzleUrl.isNotBlank()
             if (canControl || canLogs) QuickActions(s, canControl, canLogs) { nav.navigate(Routes.logs(s.container!!)) }
             if (st?.up == false && st.error != null) {
@@ -156,7 +196,7 @@ fun DetailScreen(nav: NavHostController, id: String) {
                 Text(t("Widget: ${st.statsError} (${fmtAgo(st.statsAt)})", "Widget : ${st.statsError} (${fmtAgo(st.statsAt)})"), fontSize = 12.sp, color = c.warn)
             }
 
-            Availability(st?.history.orEmpty())
+            Availability(st?.history.orEmpty(), st?.buckets.orEmpty())
 
 
             if (st != null && st.details.isNotEmpty()) {
@@ -191,51 +231,83 @@ fun DetailScreen(nav: NavHostController, id: String) {
     }
 }
 
-/** Barres horaires de disponibilité sur 24 h (rouge = au moins une panne dans l'heure). */
+/**
+ * Disponibilité : 24 h (barres horaires, hauteur = latence), 7 jours (tranches de 6 h) ou 30 jours (par jour).
+ * Rouge = au moins une panne dans la barre ; la teinte des barres longues suit le taux de réussite.
+ */
 @Composable
-private fun Availability(history: List<Sample>) {
+private fun Availability(history: List<Sample>, buckets: List<com.rackowl.data.Bucket>) {
     val c = Home.colors
     val now = System.currentTimeMillis()
-    val hours = (0 until 24).map { h ->
-        val from = now - (24 - h) * 3600_000L
-        history.filter { it.t >= from && it.t < from + 3600_000L }
+    var range by remember { mutableStateOf(1) }
+    // Chaque barre : (fraction de hauteur, taux de réussite ou null si aucune mesure).
+    val bars: List<Pair<Float, Double?>>
+    val pct: Double?
+    when (range) {
+        1 -> {
+            val maxLatency = history.mapNotNull { it.latency }.maxOrNull()?.coerceAtLeast(1) ?: 1
+            bars = (0 until 24).map { h ->
+                val from = now - (24 - h) * 3600_000L
+                val b = history.filter { it.t >= from && it.t < from + 3600_000L }
+                val lat = b.mapNotNull { it.latency }.average().takeIf { !it.isNaN() }
+                when {
+                    b.isEmpty() -> 0.06f to null
+                    b.any { it.latency == null } -> 1f to b.count { it.latency != null }.toDouble() / b.size
+                    else -> (0.25f + 0.75f * (lat!! / maxLatency).toFloat()).coerceIn(0.1f, 1f) to 1.0
+                }
+            }
+            pct = history.takeIf { it.isNotEmpty() }?.let { h -> h.count { it.latency != null } * 100.0 / h.size }
+        }
+        else -> {
+            val span = if (range == 7) 6 * 3600_000L else 86_400_000L
+            val count = if (range == 7) 28 else 30
+            bars = (0 until count).map { i ->
+                val from = now - (count - i) * span
+                val b = buckets.filter { it.t >= from && it.t < from + span }
+                val total = b.sumOf { it.total }
+                if (total == 0) 0.06f to null else {
+                    val ok = b.sumOf { it.up }.toDouble() / total
+                    (0.3f + 0.7f * ok.toFloat()) to ok
+                }
+            }
+            val inRange = buckets.filter { it.t >= now - range * 86_400_000L }
+            val total = inRange.sumOf { it.total }
+            pct = if (total == 0) null else inRange.sumOf { it.up } * 100.0 / total
+        }
     }
-    val total = history.size
-    val upCount = history.count { it.latency != null }
-    val maxLatency = history.mapNotNull { it.latency }.maxOrNull()?.coerceAtLeast(1) ?: 1
     HCard(Modifier.fillMaxWidth(), radius = 16.dp) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(t("24 h availability", "Disponibilité 24 h"), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(t("Availability", "Disponibilité"), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Text(
-                    if (total == 0) "—" else fmtDec(upCount * 100.0 / total, 1) + " %",
-                    style = mono(12, if (total == 0 || upCount == total) c.up else c.warn),
+                    pct?.let { fmtDec(it, 1) + " %" } ?: "—",
+                    style = mono(12, if (pct == null || pct >= 99.9) c.up else if (pct >= 95) c.warn else c.down),
                 )
             }
-            val downHours = hours.count { b -> b.any { it.latency == null } }
+            com.rackowl.ui.components.Segmented(listOf(1 to "24 h", 7 to t("7 days", "7 jours"), 30 to t("30 days", "30 jours")), range, { range = it }, height = 32.dp)
+            val downBars = bars.count { (it.second ?: 1.0) < 1.0 }
             Row(
                 Modifier.fillMaxWidth().height(56.dp).semantics {
-                    contentDescription = t("Response time over 24 hours, $downHours hour(s) with an outage", "Temps de réponse sur 24 heures, $downHours heure(s) avec coupure")
+                    contentDescription = t("Availability chart, $downBars bar(s) with an outage", "Graphique de disponibilité, $downBars barre(s) avec coupure")
                 },
                 horizontalArrangement = Arrangement.spacedBy(3.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
-                hours.forEach { bucket ->
-                    val down = bucket.any { it.latency == null }
-                    val lat = bucket.mapNotNull { it.latency }.average().takeIf { !it.isNaN() }
-                    val frac = when {
-                        down -> 1f
-                        lat == null -> 0.06f
-                        else -> (0.25f + 0.75f * (lat / maxLatency).toFloat()).coerceIn(0.1f, 1f)
+                bars.forEach { (frac, ok) ->
+                    val color = when {
+                        ok == null -> c.border
+                        ok >= 0.999 -> c.accent.copy(alpha = 0.55f)
+                        ok >= 0.95 -> c.warn
+                        else -> c.down
                     }
-                    Box(
-                        Modifier.weight(1f).fillMaxHeight(frac).clip(RoundedCornerShape(2.dp))
-                            .background(if (down) c.down else if (lat == null) c.border else c.accent.copy(alpha = 0.55f)),
-                    )
+                    Box(Modifier.weight(1f).fillMaxHeight(frac).clip(RoundedCornerShape(2.dp)).background(color))
                 }
             }
             Row {
-                Text(t("24 h ago", "il y a 24 h"), fontSize = 11.sp, color = c.muted, modifier = Modifier.weight(1f))
+                Text(
+                    when (range) { 1 -> t("24 h ago", "il y a 24 h"); 7 -> t("7 days ago", "il y a 7 jours"); else -> t("30 days ago", "il y a 30 jours") },
+                    fontSize = 11.sp, color = c.muted, modifier = Modifier.weight(1f),
+                )
                 Text(t("now", "maintenant"), fontSize = 11.sp, color = c.muted)
             }
         }
@@ -302,7 +374,7 @@ private fun QuickActions(s: com.rackowl.data.Service, canControl: Boolean, canLo
             text = {
                 Text(
                     when (action) {
-                        ContainerControl.Action.START -> t("The container will be started on ${s.containerHost ?: source?.name.orEmpty()}.", "Le conteneur va être démarré sur ${s.containerHost ?: source?.name.orEmpty()}.")
+                        ContainerControl.Action.START -> t("The container will be started on ${ContainerControl.serverName(s, settings).orEmpty()}.", "Le conteneur va être démarré sur ${ContainerControl.serverName(s, settings).orEmpty()}.")
                         ContainerControl.Action.RESTART -> t("The service will be unavailable for a few seconds while it restarts.", "Le service sera indisponible quelques secondes pendant le redémarrage.")
                         ContainerControl.Action.STOP -> t("${s.name} will stay unreachable until you start the container again.", "Le service ${s.name} ne sera plus accessible jusqu’à ce que tu redémarres le conteneur.")
                     },

@@ -1,0 +1,24 @@
+name: New integration
+description: Suggest a service Rackowl should read stats from.
+title: "[Integration] "
+labels: [integration]
+body:
+  - type: input
+    id: service
+    attributes:
+      label: Service
+      placeholder: Name and link to the project
+    validations:
+      required: true
+  - type: input
+    id: api
+    attributes:
+      label: API documentation
+      description: Link to its API docs, or to its Homepage widget if there is one.
+  - type: textarea
+    id: stats
+    attributes:
+      label: Which stats would be useful?
+      placeholder: e.g. active users, queue size, storage used
+    validations:
+      required: true

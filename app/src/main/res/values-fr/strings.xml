@@ -7,4 +7,7 @@
     <string name="widget_service">Un service</string>
     <string name="widget_service_desc">Statistique principale d\'un service</string>
     <string name="channel_alerts">Alertes services</string>
+    <string name="shortcut_alerts">Alertes</string>
+    <string name="shortcut_logs">Logs</string>
+    <string name="shortcut_add">Ajouter un service</string>
 </resources>
