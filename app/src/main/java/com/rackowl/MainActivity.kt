@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.os.SystemClock
 import android.view.WindowManager
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -16,7 +17,10 @@ import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -25,9 +29,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,7 +51,13 @@ class MainActivity : FragmentActivity() {
 
     /** Verrouillé tant que l'utilisateur ne s'est pas authentifié (si l'option est active). */
     private val locked = mutableStateOf(false)
-    private var backgroundedAt = 0L
+    private lateinit var prompt: BiometricPrompt
+
+    /** Vrai pendant l'invite : la saisie du code de l'appareil peut mettre l'activité en arrière-plan. */
+    private var authenticating = false
+
+    /** Invite déjà proposée automatiquement pour ce verrouillage (pas de boucle si l'utilisateur l'annule). */
+    private var prompted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,7 +75,21 @@ class MainActivity : FragmentActivity() {
         val app = application as RackowlApp
         com.rackowl.ui.I18n.language = app.store.config.value.settings.language
         com.rackowl.monitor.MonitorService.sync(this)
-        locked.value = app.store.config.value.settings.appLock
+        prompt = BiometricPrompt(this, ContextCompat.getMainExecutor(this), object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                authenticating = false
+                unlocked = true
+                locked.value = false
+            }
+
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                authenticating = false
+                // Invite fermée par le système (app quittée, écran éteint) : la reproposer au retour.
+                // Annulée par l'utilisateur : rester sur l'écran de verrouillage, sans boucle.
+                if (errorCode == BiometricPrompt.ERROR_CANCELED) prompted = false
+            }
+        })
+        refreshLock()
         setContent {
             val config by app.store.config.state.collectAsStateWithLifecycle()
             // Verrouillage actif : l'aperçu de l'app est masqué dans les apps récentes.
@@ -72,11 +98,15 @@ class MainActivity : FragmentActivity() {
                 else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
             }
             HomeTheme(config.settings.theme, config.settings.dynamicColor) {
-                if (locked.value && config.settings.appLock) {
-                    LockScreen { authenticate() }
-                    LaunchedEffect(Unit) { authenticate() }
-                } else {
+                val showLock = locked.value && config.settings.appLock
+                // L'app reste composée sous l'écran de verrouillage : on retrouve la même page, et les
+                // résultats d'un sélecteur de fichier lancé avant le verrouillage ne sont pas perdus.
+                Box(if (showLock) Modifier.clearAndSetSemantics {} else Modifier) {
                     AppNav(app, route.value) { route.value = null }
+                }
+                if (showLock) {
+                    LockScreen { authenticate() }
+                    BackHandler { moveTaskToBack(true) }
                 }
             }
         }
@@ -84,24 +114,42 @@ class MainActivity : FragmentActivity() {
 
     override fun onStop() {
         super.onStop()
-        backgroundedAt = SystemClock.elapsedRealtime()
+        // Une rotation ou la saisie du code de l'appareil ne comptent pas comme une sortie de l'app.
+        if (!isChangingConfigurations && !authenticating) {
+            backgroundedAt = SystemClock.elapsedRealtime()
+            prompted = false
+        }
     }
 
     override fun onStart() {
         super.onStart()
-        // Reverrouille après 30 s en arrière-plan.
-        val app = application as RackowlApp
-        if (app.store.config.value.settings.appLock && backgroundedAt > 0 && SystemClock.elapsedRealtime() - backgroundedAt > 30_000) {
-            locked.value = true
+        refreshLock()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (locked.value && !prompted && !authenticating) {
+            prompted = true
+            authenticate()
         }
     }
 
+    /** Reverrouille dès que l'app est passée en arrière-plan (écran éteint compris). */
+    private fun refreshLock() {
+        val appLock = (application as RackowlApp).store.config.value.settings.appLock
+        // Option désactivée : l'activer plus tard ne verrouille pas tout de suite, seulement à la prochaine sortie.
+        if (!appLock) unlocked = true
+        if (backgroundedAt > 0) {
+            backgroundedAt = 0
+            unlocked = false
+        }
+        val lock = appLock && !unlocked
+        if (lock && !locked.value) prompted = false
+        locked.value = lock
+    }
+
     private fun authenticate() {
-        val prompt = BiometricPrompt(this, ContextCompat.getMainExecutor(this), object : BiometricPrompt.AuthenticationCallback() {
-            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                locked.value = false
-            }
-        })
+        authenticating = true
         val info = BiometricPrompt.PromptInfo.Builder()
             .setTitle(t("Unlock Rackowl", "Déverrouiller Rackowl"))
             .apply {
@@ -120,6 +168,11 @@ class MainActivity : FragmentActivity() {
     companion object {
         const val EXTRA_ROUTE = "route"
 
+        // À l'échelle du processus : survit à une rotation ou à une nouvelle instance de l'activité
+        // (widget, raccourci), et repart à zéro si Android tue le processus.
+        private var unlocked = false
+        private var backgroundedAt = 0L
+
         /** Vrai si le téléphone a une biométrie ou un code configuré. */
         fun canLock(activity: android.content.Context): Boolean {
             val auth = if (Build.VERSION.SDK_INT >= 30) BIOMETRIC_WEAK or DEVICE_CREDENTIAL else BIOMETRIC_WEAK
@@ -133,7 +186,8 @@ class MainActivity : FragmentActivity() {
 private fun LockScreen(onUnlock: () -> Unit) {
     val c = Home.colors
     Column(
-        Modifier.fillMaxSize().background(c.bg),
+        // Opaque et bloque les touches destinées à l'app en dessous.
+        Modifier.fillMaxSize().background(c.bg).clickable(remember { MutableInteractionSource() }, null) {},
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically),
     ) {
